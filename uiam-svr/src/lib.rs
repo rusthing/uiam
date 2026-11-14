@@ -10,9 +10,11 @@
 //! - `svc`：业务编排，跨表操作与校验都在这一层
 //! - `web`：`ctrl`（HTTP 入口）/ `router`（路由注册）/ `api_doc`（OpenAPI 文档）
 //! - `render`：把整棵子树渲染成可发布的 TOML，并做自检与试装配
+//! - `kv`：把渲染结果写进 Consul KV（发布链路唯一的外部副作用）
 
 pub mod config;
 pub mod dao;
+pub mod kv;
 pub mod render;
 pub mod svc;
 pub mod web;

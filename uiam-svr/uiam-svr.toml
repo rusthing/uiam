@@ -13,3 +13,13 @@ port = 9002
 [micro-svc.consul]
 base-url = "http://consul:8500"
 [micro-svc.consul.registry]
+
+# 网关配置的下发目标。与上面的 [micro-svc.consul] 是两件事：
+# 上面是「uiam 自己注册到哪个 Consul」，这里是「网关的配置 TOML 写进哪个 Consul」。
+# 部署上通常指向同一个 agent，但可以分开（另一个数据中心 / 另一套 ACL token）。
+[consul]
+base-url = "http://consul:8500"
+# robotech 配置中心的 key 形态是 `{namespace}/{group}/{data_id}`，group 就是
+# profile。库里 `uiam_gateway.consul_key` 存的是 data_id（`gatex-rs-svr.toml`），
+# 前缀在发布时补上 → 实际写入 `dev/gatex-rs-svr.toml`。
+key-prefix = "dev/"

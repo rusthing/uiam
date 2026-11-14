@@ -7,6 +7,7 @@ use robotech::web::setup_web_server;
 use std::collections::HashMap;
 use std::sync::Arc;
 use uiam_svr::config::AppConfig;
+use uiam_svr::kv::setup_consul_kv;
 
 bootstrap!(AppConfig);
 
@@ -33,6 +34,10 @@ async fn setup(
 
     setup_id_worker(app_config.id_worker.clone(), changed).await?;
     setup_db_conn(app_config.db.clone(), changed).await?;
+    // 放在 Web 之前：Web 一起来就可能有人点「发布」，那时 KV 客户端必须已经就位。
+    // 这里失败直接让进程起不来——[consul] 配错了的服务，起来了也发布不了，
+    // 与其等用户点发布才发现，不如启动时就报。
+    setup_consul_kv(&app_config.consul)?;
     setup_web_server(app_config.web.clone(), port, old_pid, changed).await?;
 
     Ok(())

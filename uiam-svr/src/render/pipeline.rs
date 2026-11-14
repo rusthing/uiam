@@ -118,7 +118,7 @@ pub fn render(
     };
 
     Ok(RenderedConfig {
-        checksum: sha256_hex(&merged_toml),
+        checksum: checksum(&merged_toml),
         toml: merged_toml,
         app_config,
         report,
@@ -175,8 +175,18 @@ fn merge_extra_toml(
     Ok(toml::to_string_pretty(&base)?)
 }
 
-/// 计算 sha256 的十六进制串（小写，64 字符）
-fn sha256_hex(text: &str) -> String {
+/// # 计算文本的 sha256 摘要
+///
+/// 十六进制小写、64 字符。发布链路里有两处要用同一套算法：
+/// 渲染时算「这次渲染的内容摘要」，发布前算「KV 里现在那份内容的摘要」——
+/// 两者必须能直接比，所以抽成公开函数而不是各算各的。
+///
+/// ## 参数
+/// - `text`：待摘要的文本（渲染出的 TOML）
+///
+/// ## 返回值
+/// 64 字符的十六进制串
+pub fn checksum(text: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(text.as_bytes());
     hasher

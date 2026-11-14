@@ -9,3 +9,7 @@ port = 9002
 
 [micro-svc.consul]
 base-url = "http://localhost:8500"
+
+[consul]
+base-url = "http://localhost:8500"
+key-prefix = "dev/"
