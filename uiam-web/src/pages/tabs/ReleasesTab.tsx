@@ -4,12 +4,16 @@
  * 回滚不是「把指针拨回去」，而是**把某版内容原样再推一次并生成新版本**。
  * 界面上的说法要跟这个一致，否则用户会以为回滚之后还能「回到未来」。
  */
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatTime, relativeTime, shortChecksum } from '../../lib/format'
+import { diffLines } from '../../lib/diff'
 import type { Release } from '../../lib/types'
 import { CodeView } from '../../components/CodeView'
-import { Badge, Drawer, Empty, Section, Spinner } from '../../components/ui'
+import { DiffView } from '../../components/DiffView'
+import { Badge, Drawer, Empty, Section, Spinner, cx } from '../../components/ui'
 import { IconEye, IconUndo } from '../../components/icons'
+
+type ViewMode = 'content' | 'diff'
 
 export function ReleasesTab({
   releases,
@@ -21,7 +25,23 @@ export function ReleasesTab({
   onRollback: (release: Release) => void
 }) {
   const [viewing, setViewing] = useState<Release | null>(null)
+  const [mode, setMode] = useState<ViewMode>('content')
   const latest = releases[0]
+
+  // 上一版按版本号取，不用数组下标：回滚产生的版本号是连续的，
+  // 但历史里可能有「未推送」的记录，按下标会取错
+  const previous = useMemo(
+    () => (viewing ? releases.find((r) => r.version === viewing.version - 1) : undefined),
+    [releases, viewing],
+  )
+  const diff = useMemo(
+    () => (viewing && previous ? diffLines(previous.content, viewing.content) : []),
+    [viewing, previous],
+  )
+
+  useEffect(() => {
+    setMode('content')
+  }, [viewing?.id])
 
   return (
     <>
@@ -147,8 +167,41 @@ export function ReleasesTab({
         }
       >
         {viewing && (
-          <div className="p-5">
-            <CodeView code={viewing.content} maxHeight={9999} />
+          <div className="p-5 pt-3">
+            <div className="mb-3 flex items-center gap-1">
+              {(
+                [
+                  ['content', '全文'],
+                  ['diff', '与上一版差异'],
+                ] as Array<[ViewMode, string]>
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setMode(key)}
+                  disabled={key === 'diff' && !previous}
+                  className={cx(
+                    'rounded-lg px-2.5 py-1 text-[12px] transition-colors',
+                    mode === key
+                      ? 'bg-brand-soft text-brand'
+                      : 'text-ink-mute hover:bg-surface-hover hover:text-ink',
+                    key === 'diff' && !previous && 'cursor-not-allowed opacity-40',
+                  )}
+                  title={key === 'diff' && !previous ? '这是第一版，没有可对比的上一版' : undefined}
+                >
+                  {label}
+                </button>
+              ))}
+              {mode === 'diff' && previous && (
+                <span className="ml-1.5 text-[11.5px] text-ink-mute">
+                  v{previous.version} → v{viewing.version}
+                </span>
+              )}
+            </div>
+            {mode === 'content' || !previous ? (
+              <CodeView code={viewing.content} maxHeight={9999} />
+            ) : (
+              <DiffView lines={diff} maxHeight={9999} />
+            )}
           </div>
         )}
       </Drawer>
