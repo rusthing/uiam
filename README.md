@@ -8,8 +8,8 @@
 
 | 步 | 内容 | 状态 |
 |---|---|---|
-| 0 | 工程骨架：`uiam-api` / `uiam-api-client` / `uiam-svr` + migrations | 进行中 |
-| 1 | 网关管理面：5 表 CRUD + 发布流水线 + 版本回滚 | 未开始 |
+| 0 | 工程骨架：`uiam-api` / `uiam-api-client` / `uiam-svr` + migrations | 已完成 |
+| 1 | 网关管理面：5 表 CRUD + 发布流水线 + 版本回滚 + 管理界面 | 已完成 |
 | 2 | 统一身份认证（SSO） | 未开始 |
 | 3 | 工作台 / 应用平台 | 未开始 |
 
@@ -52,4 +52,20 @@ uiam/
 cargo run -p uiam-svr
 ```
 
-Swagger 在 `/swagger-ui`，健康检查在 `/ops/health`。
+Swagger 在 `/swagger-ui/`，健康检查在 `/actuator/health`。
+
+## 前端（`uiam-web/`）
+
+React 19 + Vite 8 + React Router 7 + Tailwind 4，无 UI 组件库。
+
+```bash
+cd uiam-web
+npm install
+npm run dev      # http://127.0.0.1:5180，/uiam 反代到 127.0.0.1:9002
+npm run build    # 产物在 dist/
+```
+
+- `prototype/` 是设计原型（四方案对比，A = macOS Liquid Glass 已选），与工程代码无关
+- 主题只有 `light` / `dark` 两态，点图标直接切，扩散圆心是图标中心（见 `src/lib/theme.ts`）
+- 一期没有登录，写接口靠侧边栏底部的「操作者 ID」填 `X-User-Id`，审计落在 `release.creater_id`
+- 详细说明见 `uiam-web/README.md`

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>uiam · 网关管理面</title>
+    <script>
+      // 首屏定主题，避免白底闪一下再变黑。只读一次 localStorage，
+      // 没有记录时按系统偏好给个初值——这只是初值，不构成第三种状态。
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('uiam-theme')
+          var dark =
+            saved === 'dark' ||
+            (saved !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

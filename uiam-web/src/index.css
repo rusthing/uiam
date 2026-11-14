@@ -1,0 +1,468 @@
+@import 'tailwindcss';
+
+/* 主题只有两态：light / dark。没有「跟随系统」这一档，切换由用户点击决定。 */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* ---------------- 设计令牌 ---------------- */
+/* 语义化的颜色全部走 CSS 变量，组件里只引用语义名（surface/ink/line…），
+   换主题等于换一组变量值，不需要给每个组件写一份 dark 变体。 */
+:root {
+  --canvas: #eceff5;
+  --canvas-glow-a: rgba(47, 109, 246, 0.16);
+  --canvas-glow-b: rgba(16, 185, 129, 0.12);
+
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-strong: #ffffff;
+  --surface-sunken: rgba(16, 24, 40, 0.035);
+  --surface-hover: rgba(16, 24, 40, 0.045);
+
+  --line: rgba(16, 24, 40, 0.1);
+  --line-strong: rgba(16, 24, 40, 0.18);
+
+  --ink: #0f1728;
+  --ink-soft: #4a5568;
+  --ink-mute: #8b95a6;
+
+  --brand: #2f6df6;
+  --brand-ink: #ffffff;
+  --brand-soft: rgba(47, 109, 246, 0.1);
+  --brand-line: rgba(47, 109, 246, 0.32);
+
+  --ok: #0f9d63;
+  --ok-soft: rgba(15, 157, 99, 0.12);
+  --warn: #a86717;
+  --warn-soft: rgba(201, 138, 44, 0.14);
+  --danger: #d0342c;
+  --danger-soft: rgba(208, 52, 44, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 8px 24px -8px rgba(16, 24, 40, 0.18), 0 2px 6px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 24px 64px -24px rgba(16, 24, 40, 0.32), 0 4px 12px rgba(16, 24, 40, 0.06);
+
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  --canvas: #080a0f;
+  --canvas-glow-a: rgba(78, 124, 255, 0.2);
+  --canvas-glow-b: rgba(16, 185, 129, 0.1);
+
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-strong: #141821;
+  --surface-sunken: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  --ink: #e8edf6;
+  --ink-soft: #a3adbe;
+  --ink-mute: #6c7688;
+
+  --brand: #7aa2ff;
+  --brand-ink: #0a1020;
+  --brand-soft: rgba(122, 162, 255, 0.14);
+  --brand-line: rgba(122, 162, 255, 0.4);
+
+  --ok: #3ddc97;
+  --ok-soft: rgba(61, 220, 151, 0.13);
+  --warn: #f0c267;
+  --warn-soft: rgba(240, 194, 103, 0.13);
+  --danger: #ff7b72;
+  --danger-soft: rgba(255, 123, 114, 0.13);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 24px 64px -24px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* 让 Tailwind 的语义色工具类（bg-surface / text-ink / border-line …）跟着变量走 */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-line: var(--brand-line);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-mono: var(--mono);
+}
+
+/* ---------------- 基础 ---------------- */
+* {
+  border-color: var(--line);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* 背景的两团光，纯装饰；用 fixed 伪元素而不是 background-image，
+   滚动时不会跟着走，视觉上更像「毛玻璃后面有光」。 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38rem 38rem at 12% -6%, var(--canvas-glow-a), transparent 70%),
+    radial-gradient(32rem 32rem at 92% 8%, var(--canvas-glow-b), transparent 70%);
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-line);
+  outline-offset: 2px;
+}
+
+/* 细滚动条：表格与代码块里很显眼，默认那条太粗 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------------- 组件基元 ---------------- */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel {
+  background: var(--surface);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.06s ease,
+    opacity 0.15s ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-ink);
+  box-shadow: 0 6px 16px -8px var(--brand);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand);
+  filter: brightness(1.06);
+  border-color: transparent;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-soft);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.btn-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--danger-soft);
+}
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  border-color: var(--danger);
+}
+
+.btn-sm {
+  height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  padding: 7px 10px;
+  font-size: 13px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--brand-line);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--ink-mute);
+}
+.textarea {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 96px;
+  tab-size: 2;
+}
+.select {
+  appearance: none;
+  padding-right: 28px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-mute) 50%),
+    linear-gradient(135deg, var(--ink-mute) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) calc(50% + 1px),
+    calc(100% - 10px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+}
+.hint {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge-brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-color: var(--brand-line);
+}
+.badge-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.badge-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+}
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.badge-mute {
+  background: var(--surface-sunken);
+  color: var(--ink-mute);
+  border-color: var(--line);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-variant-ligatures: none;
+}
+
+/* 表格：贴边、可横向滚动、表头粘住 */
+.table-wrap {
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+table.tbl {
+  width: 100%;
+  /* 窄屏时宁可横向滚动，也不要把「名称」压成四行——表格的可读性优先于
+     「不出现滚动条」，滚动条本身就是移动端表格的常规交互 */
+  min-width: 640px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+table.tbl th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-mute);
+  background: var(--surface-strong);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.tbl td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+table.tbl tbody tr:last-child td {
+  border-bottom: none;
+}
+table.tbl tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+/* 代码块 */
+.code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre;
+  tab-size: 2;
+  color: var(--ink-soft);
+}
+
+/* 主题切换：不支持 View Transition 或用户要求减少动效时，退回整页过渡 */
+html.theme-fading,
+html.theme-fading * {
+  transition:
+    background-color 0.32s ease,
+    color 0.32s ease,
+    border-color 0.32s ease,
+    fill 0.32s ease !important;
+}
+
+/* View Transition 默认会给新旧两张快照做交叉淡入，叠加圆形裁切后画面会发灰。
+   这里关掉默认动画，只保留我们自己用 Web Animations 跑的 clip-path。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  will-change: clip-path;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.18s ease-out both;
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0.4;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.slide-in-right {
+  animation: slide-in-right 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop-in,
+  .slide-in-right {
+    animation: none;
+  }
+}
