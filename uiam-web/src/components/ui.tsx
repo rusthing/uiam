@@ -185,7 +185,7 @@ export function Modal({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-6 sm:items-center">
+    <div className="fixed inset-0 z-[9800] flex items-start justify-center overflow-y-auto p-6 sm:items-center">
       <div
         className="fixed inset-0 bg-[rgba(10,14,22,0.42)] backdrop-blur-[2px]"
         onClick={onClose}
@@ -258,7 +258,7 @@ export function Drawer({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-[9800] flex justify-end">
       <div className="absolute inset-0 bg-[rgba(10,14,22,0.38)]" onClick={onClose} />
       <aside
         className="slide-in-right relative flex h-full w-full flex-col border-l border-line bg-surface-strong shadow-2xl"

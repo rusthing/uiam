@@ -56,7 +56,7 @@ Swagger 在 `/swagger-ui/`，健康检查在 `/actuator/health`。
 
 ## 前端（`uiam-web/`）
 
-React 19 + Vite 8 + React Router 7 + Tailwind 4，无 UI 组件库。
+React 19 + Vite 8 + Tailwind 4，无 UI 组件库、无路由库。
 
 ```bash
 cd uiam-web
@@ -65,7 +65,9 @@ npm run dev      # http://127.0.0.1:5180，/uiam 反代到 127.0.0.1:9002
 npm run build    # 产物在 dist/
 ```
 
-- `prototype/` 是设计原型（四方案对比，A = macOS Liquid Glass 已选），与工程代码无关
-- 主题只有 `light` / `dark` 两态，点图标直接切，扩散圆心是图标中心（见 `src/lib/theme.ts`）
-- 一期没有登录，写接口靠侧边栏底部的「操作者 ID」填 `X-User-Id`，审计落在 `release.creater_id`
+- `prototype/` 是设计原型（四方案对比，**A = macOS 26 Tahoe / Liquid Glass 已定稿**）；
+  工程代码按 A 实现：壁纸 + 菜单栏 + 组件网格 + Dock + 启动台 + 可拖拽窗口
+- 业务内容住在窗口里（网关配置 / 接口速查 / 系统设置 / 关于），不是侧边栏后台
+- 主题只有 `light` / `dark` 两态，点菜单栏图标直接切，扩散圆心是图标中心（见 `src/lib/theme.ts`）
+- 一期没有登录，写接口靠「系统设置」里的操作者 ID 填 `X-User-Id`，审计落在 `release.creater_id`
 - 详细说明见 `uiam-web/README.md`

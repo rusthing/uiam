@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed bottom-5 right-5 z-[60] flex w-[360px] flex-col gap-2">
+        <div className="pointer-events-none fixed bottom-[86px] left-1/2 z-[9850] flex w-[min(560px,calc(100vw-40px))] -translate-x-1/2 flex-col gap-2">
           {items.map((item) => (
             <div
               key={item.id}
