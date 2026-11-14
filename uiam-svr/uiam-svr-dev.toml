@@ -1,0 +1,11 @@
+profile = "dev"
+
+# 本地开发覆盖：主配置文件里的地址用容器名，本机直跑时全部换成 localhost。
+[db]
+url = "postgres://uiam:uiam@localhost:5432/uiam"
+
+[web]
+port = 9002
+
+[micro-svc.consul]
+base-url = "http://localhost:8500"

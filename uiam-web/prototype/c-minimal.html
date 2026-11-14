@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uiam · 方案 C（极简浅色）</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  :root {
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --win-bg: #ffffff;
+    --win-radius: 12px;
+    --win-shadow: 0 1px 2px rgba(16,24,40,.04), 0 12px 32px rgba(16,24,40,.08), 0 0 0 1px rgba(16,24,40,.06);
+    --win-shadow-focus: 0 2px 4px rgba(16,24,40,.05), 0 18px 44px rgba(16,24,40,.13), 0 0 0 1px rgba(16,24,40,.08);
+    --bar-bg: #ffffff;
+    --bar-h: 42px;
+    --t1: #101828;
+    --t2: #475467;
+    --t3: #98a2b3;
+    --accent: #4f46e5;
+    --accent-soft: rgba(79,70,229,.1);
+    --line: #eaecf0;
+    --line-soft: #f2f4f7;
+    --hover: rgba(79,70,229,.045);
+    --side-bg: #fbfbfc;
+    --radius-sm: 7px;
+  }
+
+  /* ============ 浅色底 ============ */
+  .desktop {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 45% at 18% 12%, rgba(79,70,229,.055) 0%, transparent 62%),
+      radial-gradient(ellipse 55% 40% at 86% 82%, rgba(14,165,233,.05) 0%, transparent 60%),
+      linear-gradient(180deg, #fcfcfd 0%, #f6f7f9 55%, #eef0f4 100%);
+  }
+  .desktop::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image: radial-gradient(rgba(16,24,40,.05) 1px, transparent 1px);
+    background-size: 22px 22px; opacity: .55;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 30%, transparent 75%);
+  }
+
+  /* ============ 顶部状态条 ============ */
+  .statusbar {
+    position: fixed; top: 0; left: 0; right: 0; height: 34px;
+    display: flex; align-items: center; padding: 0 16px 0 76px;
+    font-size: 12px; color: var(--t2); z-index: 9400;
+    background: rgba(252,252,253,.72);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid rgba(16,24,40,.05);
+  }
+  .sb-brand {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px; font-weight: 600; color: var(--t1); letter-spacing: -.1px;
+  }
+  .sb-mark {
+    width: 15px; height: 15px; border-radius: 4px;
+    background: var(--accent); display: grid; place-items: center;
+    color: #fff; font-size: 8.5px; font-weight: 700;
+  }
+  .sb-sep { width: 1px; height: 12px; background: var(--line); margin: 0 11px; }
+  .sb-app { font-size: 12px; color: var(--t2); }
+  .sb-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+  .sb-clock { font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--t2); }
+  .sb-user {
+    display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 3px;
+    border-radius: 20px;
+  }
+  .sb-user:hover { background: rgba(16,24,40,.05); }
+  .sb-avatar {
+    width: 21px; height: 21px; border-radius: 50%;
+    background: #eef2ff; color: #4338ca;
+    display: grid; place-items: center; font-size: 9.5px; font-weight: 600;
+  }
+  .sb-name { font-size: 11.5px; color: var(--t2); }
+
+  /* ============ 左侧应用栏 ============ */
+  .rail {
+    position: fixed; top: 34px; left: 0; bottom: 0; width: 64px;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; gap: 4px; z-index: 9300;
+    background: rgba(252,252,253,.72);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border-right: 1px solid rgba(16,24,40,.05);
+  }
+  .rail-btn {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: grid; place-items: center; position: relative;
+    transition: background .12s;
+  }
+  .rail-btn:hover { background: rgba(16,24,40,.055); }
+  .rail-btn .tile { width: 30px; height: 30px; border-radius: 8px; font-size: 13px; }
+  .rail-btn.active { background: rgba(79,70,229,.1); }
+  .rail-btn.active::before {
+    content: ""; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
+    width: 2.5px; height: 18px; border-radius: 2px; background: var(--accent);
+  }
+  .rail-btn .tip {
+    position: absolute; left: 48px; top: 50%; transform: translateY(-50%);
+    background: #101828; color: #fff; font-size: 11.5px; padding: 4px 9px;
+    border-radius: 6px; white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity .12s; z-index: 5;
+  }
+  .rail-btn:hover .tip { opacity: 1; }
+  .rail-sep { width: 24px; height: 1px; background: var(--line); margin: 7px 0; }
+  .rail-foot { margin-top: auto; }
+
+  /* ============ 桌面图标（工作区） ============ */
+  .desk-icons {
+    position: absolute; top: 58px; left: 92px; right: 24px;
+    display: grid; grid-template-columns: repeat(auto-fill, 108px);
+    grid-auto-rows: 104px; gap: 6px; align-content: start; z-index: 1;
+  }
+  .d-icon {
+    width: 108px; height: 104px; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 10px 6px;
+  }
+  .d-icon:hover { background: rgba(16,24,40,.045); }
+  .d-icon.sel { background: rgba(79,70,229,.09); outline: 1px solid rgba(79,70,229,.32); }
+  .d-icon .tile { width: 46px; height: 46px; border-radius: 12px; font-size: 19px; }
+  .d-icon .lbl { font-size: 11.5px; color: var(--t2); text-align: center; line-height: 1.25; max-width: 96px; }
+  .d-icon.sel .lbl { color: var(--accent); font-weight: 500; }
+
+  /* ============ 窗口微调 ============ */
+  .window { border: none; }
+  .win-bar.mini { padding: 0 8px 0 14px; }
+  .win-bar.mini .win-title { font-size: 12.5px; font-weight: 600; color: var(--t1); }
+  .win-bar.mini .wc { width: 28px; height: 26px; border-radius: 6px; }
+  .win-bar.mini .wc::before, .win-bar.mini .wc::after { background: var(--t3); }
+  .win-bar.mini .wc.close:hover { background: #fef3f2; }
+  .win-bar.mini .wc.close:hover::before, .win-bar.mini .wc.close:hover::after { background: #b42318; }
+  th { background: #fbfbfc; }
+</style>
+</head>
+<body>
+
+<div class="desktop">
+  <div class="desk-icons" id="desk-icons"></div>
+  <div class="windows" id="windows"></div>
+</div>
+
+<!-- 顶部状态条 -->
+<div class="statusbar">
+  <div class="sb-brand"><span class="sb-mark">U</span>uiam</div>
+  <div class="sb-sep"></div>
+  <div class="sb-app" id="sb-app">工作台</div>
+  <div class="sb-right">
+    <div class="sb-clock" id="sb-clock">--</div>
+    <div class="sb-user">
+      <div class="sb-avatar">ZB</div>
+      <div class="sb-name">张宝忠</div>
+    </div>
+  </div>
+</div>
+
+<!-- 左侧应用栏 -->
+<div class="rail" id="rail"></div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toast-text"></span></div>
+
+<script>window.SHELL = { titlebar: 'mini' };</script>
+<script src="shared.js"></script>
+<script>
+/* ---------- 桌面图标 ---------- */
+function renderDeskIcons() {
+  document.getElementById('desk-icons').innerHTML = APPS.map(function (a) {
+    return '<div class="d-icon" onclick="selIcon(this)" ondblclick="openApp(\'' + a.id + '\')">' +
+      tile(a) + '<div class="lbl">' + a.name + '</div></div>';
+  }).join('');
+}
+var selEl = null;
+function selIcon(el) {
+  if (selEl) selEl.classList.remove('sel');
+  selEl = el; el.classList.add('sel');
+}
+
+/* ---------- 左侧栏 ---------- */
+function renderRail() {
+  var apps = APPS.map(function (a) {
+    return '<div class="rail-btn" data-id="' + a.id + '" onclick="openApp(\'' + a.id + '\')">' +
+      tile(a) + '<div class="tip">' + a.name + '</div></div>';
+  }).join('');
+  document.getElementById('rail').innerHTML =
+    apps + '<div class="rail-sep"></div>' +
+    '<div class="rail-btn rail-foot" onclick="toast(\'帮助文档\')">' +
+      '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#98a2b3" stroke-width="1.5" stroke-linecap="round">' +
+        '<circle cx="10" cy="10" r="7.4"/><path d="M8 7.6a2 2 0 113 1.9c-.6.4-1 .9-1 1.6v.3"/>' +
+        '<circle cx="10" cy="13.9" r=".9" fill="#98a2b3" stroke="none"/></svg>' +
+      '<div class="tip">帮助</div></div>';
+  syncRunning();
+}
+
+function syncRunning() {
+  document.querySelectorAll('.rail-btn[data-id]').forEach(function (el) {
+    var id = el.dataset.id;
+    el.classList.toggle('active', focusId === id && openWins[id] && !openWins[id].min);
+  });
+}
+
+function onWindowFocus(id) {
+  document.getElementById('sb-app').textContent = id && APP_MAP[id] ? APP_MAP[id].name : '工作台';
+  syncRunning();
+}
+
+/* ---------- 时钟 ---------- */
+function clock() {
+  var d = new Date();
+  var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+  var w = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+  document.getElementById('sb-clock').textContent =
+    (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + w + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.d-icon') && selEl) { selEl.classList.remove('sel'); selEl = null; }
+});
+
+renderDeskIcons();
+renderRail();
+clock();
+setInterval(clock, 20000);
+</script>
+</body>
+</html>

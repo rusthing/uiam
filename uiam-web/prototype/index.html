@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uiam · 界面方案对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0f1116;
+    color: #e7e9ee;
+    -webkit-font-smoothing: antialiased;
+    padding: 44px 40px 60px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header { margin-bottom: 32px; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
+  .sub { font-size: 13px; color: #8b93a1; margin-top: 7px; line-height: 1.6; max-width: 720px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+
+  .card {
+    background: #161920; border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px; overflow: hidden;
+    transition: border-color .15s, transform .15s;
+    display: flex; flex-direction: column;
+  }
+  .card:hover { border-color: rgba(255,255,255,.18); transform: translateY(-2px); }
+  .thumb {
+    position: relative; width: 100%; padding-top: 62.5%;
+    background: #0a0c11; overflow: hidden; cursor: pointer;
+  }
+  .thumb iframe {
+    position: absolute; top: 0; left: 0;
+    width: 1280px; height: 800px; border: 0;
+    transform: scale(.446875); transform-origin: top left;
+    pointer-events: none;
+  }
+  .thumb .mask {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 62%, rgba(10,12,17,.5));
+    pointer-events: none;
+  }
+  .meta { padding: 15px 17px 17px; display: flex; align-items: flex-start; gap: 12px; }
+  .meta .idx {
+    width: 22px; height: 22px; border-radius: 6px; flex: 0 0 22px;
+    background: rgba(255,255,255,.07);
+    display: grid; place-items: center; font-size: 11px; font-weight: 600; color: #9aa3b2;
+  }
+  .meta .txt { flex: 1; min-width: 0; }
+  .meta .name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .meta .tag {
+    font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 3px;
+    background: rgba(255,255,255,.08); color: #9aa3b2;
+  }
+  .meta .desc { font-size: 12px; color: #8b93a1; margin-top: 6px; line-height: 1.6; }
+  .meta .open {
+    margin-left: auto; align-self: center; flex: 0 0 auto;
+    font-size: 12px; padding: 5px 13px; border-radius: 6px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
+    color: #e7e9ee; text-decoration: none;
+  }
+  .meta .open:hover { background: rgba(255,255,255,.14); }
+
+  .note {
+    margin-top: 34px; padding: 16px 18px; border-radius: 10px;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.06);
+    font-size: 12.5px; color: #8b93a1; line-height: 1.75;
+  }
+  .note b { color: #c9cfda; font-weight: 600; }
+  .note code {
+    font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
+    background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 3px; color: #a8b3c4;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>uiam 桌面 · 四个界面方案</h1>
+    <div class="sub">
+      四套方案的应用清单、窗口内容、交互逻辑完全一致，区别只在外壳：壁纸、导航形态、窗口装饰、明暗。
+      点缩略图或「打开」进入可交互版本。
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="thumb" onclick="location.href='a-macos.html'">
+        <iframe src="a-macos.html" scrolling="no" tabindex="-1"></iframe>
+        <div class="mask"></div>
+      </div>
+      <div class="meta">
+        <div class="idx">A</div>
+        <div class="txt">
+          <div class="name">macOS Tahoe · Liquid Glass <span class="tag" style="background:rgba(34,211,238,.16);color:#5eead4">已选</span></div>
+          <div class="desc">13px 连续圆角、透明标题栏、玻璃 Dock（固定栏 + 临时栏）、24% squircle 图标。桌面是 widget 网格，可拖动排序、换尺寸、增删并持久化；主题三态切换带圆形扩散。</div>
+        </div>
+        <a class="open" href="a-macos.html">打开</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="thumb" onclick="location.href='b-win11.html'">
+        <iframe src="b-win11.html" scrolling="no" tabindex="-1"></iframe>
+        <div class="mask"></div>
+      </div>
+      <div class="meta">
+        <div class="idx">B</div>
+        <div class="txt">
+          <div class="name">Windows 11 风格 <span class="tag">居中任务栏</span></div>
+          <div class="desc">任务栏居中、开始菜单从底部弹出，窗口控制按钮在右上。对国内用户最熟悉，培训成本最低。</div>
+        </div>
+        <a class="open" href="b-win11.html">打开</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="thumb" onclick="location.href='c-minimal.html'">
+        <iframe src="c-minimal.html" scrolling="no" tabindex="-1"></iframe>
+        <div class="mask"></div>
+      </div>
+      <div class="meta">
+        <div class="idx">C</div>
+        <div class="txt">
+          <div class="name">极简浅色 <span class="tag">留白 · 低噪音</span></div>
+          <div class="desc">浅底细网格、左侧 64px 图标栏、顶部细状态条。信息密度低，长时间盯着不累，更像现代 SaaS 而不是老式后台。</div>
+        </div>
+        <a class="open" href="c-minimal.html">打开</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="thumb" onclick="location.href='d-dark.html'">
+        <iframe src="d-dark.html" scrolling="no" tabindex="-1"></iframe>
+        <div class="mask"></div>
+      </div>
+      <div class="meta">
+        <div class="idx">D</div>
+        <div class="txt">
+          <div class="name">深色科技感 <span class="tag">暗色 · 发光强调</span></div>
+          <div class="desc">近黑底 + 青蓝光晕 + 细网格，左侧图标栏带发光指示条。运维和监控场景下更耐看，也更容易做「在线状态」这类实时反馈。</div>
+        </div>
+        <a class="open" href="d-dark.html">打开</a>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>四套方案的共同点</b>（这些是产品逻辑，不随风格变）：<br>
+    一、网关配置是桌面上的一个普通应用，不是主界面——「操作系统」的语义就是所有能力平等。<br>
+    二、单点登录窗口里有 <code>home_url</code>，因为 adm 的应用表没有 url 字段，应用入口只能存在 uiam。<br>
+    三、桌面是 widget 网格而不是图标阵列——时钟、当前用户、在线数、快捷应用、最近发布、网关节点、今日登录、待办审批，每个人可以自己排布并持久化。<br>
+    四、窗口可拖动、最小化、最大化、关闭，四个方案都实现了。
+  </div>
+</div>
+</body>
+</html>

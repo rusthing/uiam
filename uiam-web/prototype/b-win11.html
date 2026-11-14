@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uiam · 方案 B（Windows 11 风格）</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  :root {
+    --font: "Segoe UI Variable Display", "Segoe UI", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --win-radius: 8px;
+    --win-shadow: 0 16px 40px rgba(0,0,0,.34), 0 0 0 .5px rgba(0,0,0,.22);
+    --win-shadow-focus: 0 22px 54px rgba(0,0,0,.42), 0 0 0 .5px rgba(0,0,0,.26);
+    --bar-bg: #f3f3f3;
+    --bar-h: 40px;
+    --t1: #1a1a1a;
+    --t2: #444444;
+    --t3: #767676;
+    --accent: #0067c0;
+    --accent-soft: rgba(0,103,192,.12);
+    --line: rgba(0,0,0,.09);
+    --line-soft: rgba(0,0,0,.055);
+    --hover: rgba(0,103,192,.06);
+    --side-bg: #f7f7f7;
+    --radius-sm: 5px;
+  }
+
+  /* ============ 壁纸：Bloom 风格 ============ */
+  .desktop {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 55% 45% at 28% 26%, rgba(74,140,235,.55) 0%, transparent 58%),
+      radial-gradient(ellipse 50% 55% at 72% 58%, rgba(120,96,200,.5) 0%, transparent 55%),
+      radial-gradient(ellipse 65% 45% at 46% 88%, rgba(38,90,170,.6) 0%, transparent 62%),
+      radial-gradient(ellipse 40% 35% at 84% 22%, rgba(64,180,220,.32) 0%, transparent 60%),
+      linear-gradient(158deg, #061527 0%, #0d2544 34%, #14375f 62%, #1d4a72 84%, #25608c 100%);
+  }
+  .desktop::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      conic-gradient(from 200deg at 34% 32%, rgba(255,255,255,.05), transparent 22%),
+      radial-gradient(ellipse 90% 60% at 50% 115%, rgba(0,0,0,.35), transparent 62%);
+  }
+
+  /* ============ 桌面图标（左侧竖排） ============ */
+  .desk-icons {
+    position: absolute; top: 16px; left: 16px;
+    display: grid; grid-auto-flow: column;
+    grid-template-rows: repeat(auto-fill, 90px);
+    grid-auto-columns: 90px; align-content: start; z-index: 1;
+  }
+  .d-icon {
+    width: 90px; height: 90px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 6px 4px; border-radius: 5px;
+  }
+  .d-icon:hover { background: rgba(255,255,255,.09); }
+  .d-icon.sel { background: rgba(0,120,212,.28); outline: .5px solid rgba(120,190,255,.6); }
+  .d-icon .tile { width: 44px; height: 44px; border-radius: 5px; font-size: 18px; }
+  .d-icon .lbl {
+    font-size: 11.5px; color: #fff; text-align: center; line-height: 1.25;
+    text-shadow: 0 1px 3px rgba(0,0,0,.6); max-width: 84px;
+  }
+
+  /* ============ 任务栏（居中） ============ */
+  .taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
+    background: rgba(28,40,58,.62);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border-top: .5px solid rgba(255,255,255,.1);
+    display: flex; align-items: center; z-index: 9500;
+  }
+  .tb-center {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 2px;
+  }
+  .tb-btn {
+    width: 40px; height: 40px; border: none; background: transparent;
+    border-radius: 5px; display: grid; place-items: center; cursor: default;
+    position: relative; transition: background .1s;
+  }
+  .tb-btn:hover { background: rgba(255,255,255,.1); }
+  .tb-btn.active { background: rgba(255,255,255,.14); }
+  .tb-btn.active::after {
+    content: ""; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    width: 16px; height: 2.5px; border-radius: 2px; background: #4cc2ff;
+  }
+  .tb-btn .tile { width: 24px; height: 24px; border-radius: 4px; font-size: 11px; }
+  .tb-start { width: 40px; height: 40px; border: none; background: transparent; border-radius: 5px; display: grid; place-items: center; }
+  .tb-start:hover { background: rgba(255,255,255,.1); }
+  .tb-start svg { width: 19px; height: 19px; }
+  .tb-tray {
+    margin-left: auto; display: flex; align-items: center; gap: 2px; padding-right: 6px;
+    color: rgba(255,255,255,.92); font-size: 12px;
+  }
+  .tb-tray-item { padding: 4px 7px; border-radius: 4px; display: flex; align-items: center; }
+  .tb-tray-item:hover { background: rgba(255,255,255,.1); }
+  .tb-clock { text-align: right; line-height: 1.3; padding: 3px 8px; border-radius: 4px; font-size: 11.5px; }
+  .tb-clock:hover { background: rgba(255,255,255,.1); }
+  .tb-clock .d2 { color: rgba(255,255,255,.78); }
+
+  /* ============ 开始菜单 ============ */
+  .start {
+    position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%) translateY(10px);
+    width: 600px; max-height: 620px;
+    background: rgba(243,243,243,.94);
+    backdrop-filter: blur(46px) saturate(170%);
+    -webkit-backdrop-filter: blur(46px) saturate(170%);
+    border: .5px solid rgba(0,0,0,.16);
+    border-radius: 9px;
+    box-shadow: 0 22px 60px rgba(0,0,0,.42);
+    z-index: 9600; display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: transform .16s ease, opacity .16s ease;
+  }
+  .start.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+  .st-search {
+    margin: 22px 24px 14px; padding: 6px 12px; border-radius: 5px;
+    background: #fff; border: .5px solid rgba(0,0,0,.16);
+    font-family: inherit; font-size: 12.5px; color: var(--t1); outline: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  }
+  .st-search:focus { border-color: var(--accent); border-bottom-width: 2px; }
+  .st-head {
+    display: flex; align-items: center; padding: 0 24px 10px;
+    font-size: 12px; font-weight: 600; color: var(--t1);
+  }
+  .st-head .more { margin-left: auto; font-size: 11.5px; font-weight: 400; color: var(--t2);
+    background: rgba(0,0,0,.05); padding: 3px 9px; border-radius: 4px; }
+  .st-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
+    padding: 0 16px 14px; overflow-y: auto;
+  }
+  .st-app {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 10px 4px; border-radius: 5px;
+  }
+  .st-app:hover { background: rgba(0,0,0,.055); }
+  .st-app .tile { width: 30px; height: 30px; border-radius: 5px; font-size: 13px; }
+  .st-app span { font-size: 11px; color: var(--t1); text-align: center; }
+  .st-foot {
+    margin-top: auto; padding: 10px 24px; border-top: .5px solid rgba(0,0,0,.09);
+    display: flex; align-items: center; gap: 9px; background: rgba(0,0,0,.028);
+    border-radius: 0 0 9px 9px;
+  }
+  .st-user { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; }
+  .st-user:hover { background: rgba(0,0,0,.055); }
+  .st-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg,#4cc2ff,#0067c0);
+    display: grid; place-items: center; color: #fff; font-size: 10.5px; font-weight: 600;
+  }
+  .st-name { font-size: 12px; color: var(--t1); }
+  .st-power { margin-left: auto; display: flex; gap: 2px; }
+  .st-power button {
+    width: 30px; height: 30px; border: none; background: transparent; border-radius: 4px;
+    display: grid; place-items: center; color: var(--t2);
+  }
+  .st-power button:hover { background: rgba(0,0,0,.06); }
+</style>
+</head>
+<body>
+
+<div class="desktop">
+  <div class="desk-icons" id="desk-icons"></div>
+  <div class="windows" id="windows"></div>
+</div>
+
+<!-- 开始菜单 -->
+<div class="start" id="start" onclick="if(event.target===this)closeStart()">
+  <input class="st-search" id="st-search" placeholder="搜索应用、设置和文档" oninput="renderStart(this.value)">
+  <div class="st-head">已固定<span class="more">所有应用 &gt;</span></div>
+  <div class="st-grid" id="st-grid"></div>
+  <div class="st-foot">
+    <div class="st-user">
+      <div class="st-avatar">ZB</div>
+      <div class="st-name">张宝忠</div>
+    </div>
+    <div class="st-power">
+      <button title="锁定" onclick="toast('已锁定')">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
+        </svg>
+      </button>
+      <button title="退出" onclick="toast('已退出登录')">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+          <path d="M6 2.5H3.5A1.5 1.5 0 002 4v8a1.5 1.5 0 001.5 1.5H6M10.5 11l3-3-3-3M13.5 8H6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 任务栏 -->
+<div class="taskbar">
+  <div class="tb-center">
+    <button class="tb-start" onclick="toggleStart()" title="开始">
+      <svg viewBox="0 0 20 20" fill="#4cc2ff">
+        <rect x="1" y="1" width="8.4" height="8.4" rx=".6"/>
+        <rect x="10.6" y="1" width="8.4" height="8.4" rx=".6"/>
+        <rect x="1" y="10.6" width="8.4" height="8.4" rx=".6"/>
+        <rect x="10.6" y="10.6" width="8.4" height="8.4" rx=".6"/>
+      </svg>
+    </button>
+    <div id="tb-apps" style="display:flex;gap:2px"></div>
+  </div>
+  <div class="tb-tray">
+    <div class="tb-tray-item" title="网络">
+      <svg width="15" height="13" viewBox="0 0 16 13" fill="currentColor">
+        <path d="M8 11.4a1.1 1.1 0 100-2.2 1.1 1.1 0 000 2.2zM8 6.8c.95 0 1.84.36 2.5.95l1.06-1.13A5.3 5.3 0 008 5.05c-1.37 0-2.64.5-3.56 1.34L5.5 7.52c.66-.59 1.55-.95 2.5-.95zM8 2.5c1.83 0 3.5.7 4.75 1.85l1.07-1.13A8.4 8.4 0 008 .8a8.4 8.4 0 00-5.82 2.42l1.07 1.13A6.65 6.65 0 018 2.5z"/>
+      </svg>
+    </div>
+    <div class="tb-tray-item" title="音量">
+      <svg width="15" height="13" viewBox="0 0 16 14" fill="currentColor">
+        <path d="M8 1.2L4.4 4H2.2c-.4 0-.7.3-.7.7v4.6c0 .4.3.7.7.7h2.2L8 12.8V1.2z"/>
+        <path d="M10.6 4.4a3.2 3.2 0 010 5.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="tb-tray-item" title="电池">
+      <svg width="22" height="12" viewBox="0 0 24 13" fill="none">
+        <rect x=".6" y=".6" width="19" height="11.8" rx="2" stroke="currentColor" stroke-opacity=".65"/>
+        <rect x="2.2" y="2.2" width="15" height="8.6" rx="1.2" fill="currentColor"/>
+        <path d="M21.2 4.4v4.2c.9-.3 1.4-1.1 1.4-2.1s-.5-1.8-1.4-2.1z" fill="currentColor" fill-opacity=".65"/>
+      </svg>
+    </div>
+    <div class="tb-clock" id="tb-clock"><div>--:--</div><div class="d2">--</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toast-text"></span></div>
+
+<script>window.SHELL = { titlebar: 'win' };</script>
+<script src="shared.js"></script>
+<script>
+/* ---------- 桌面图标 ---------- */
+function renderDeskIcons() {
+  document.getElementById('desk-icons').innerHTML = APPS.map(function (a) {
+    return '<div class="d-icon" onclick="selIcon(this)" ondblclick="openApp(\'' + a.id + '\')">' +
+      tile(a) + '<div class="lbl">' + a.name + '</div></div>';
+  }).join('');
+}
+var selEl = null;
+function selIcon(el) {
+  if (selEl) selEl.classList.remove('sel');
+  selEl = el; el.classList.add('sel');
+}
+
+/* ---------- 任务栏 ---------- */
+function syncRunning() {
+  var box = document.getElementById('tb-apps');
+  if (!box) return;
+  box.innerHTML = Object.keys(openWins).map(function (id) {
+    var a = APP_MAP[id];
+    var act = (!openWins[id].min && focusId === id) ? ' active' : '';
+    return '<button class="tb-btn' + act + '" data-id="' + id + '" onclick="toggleWin(\'' + id + '\')" title="' + a.name + '">' +
+      tile(a) + '</button>';
+  }).join('');
+}
+
+function toggleWin(id) {
+  var win = document.getElementById('win-' + id);
+  if (!win) return;
+  if (openWins[id].min || win.style.display === 'none') {
+    win.style.display = 'flex';
+    openWins[id].min = false;
+    focusWin(id);
+  } else if (focusId === id) {
+    minimize(id);
+  } else {
+    focusWin(id);
+  }
+}
+
+function onWindowFocus() { syncRunning(); }
+
+/* ---------- 开始菜单 ---------- */
+function renderStart(filter) {
+  filter = (filter || '').trim().toLowerCase();
+  var list = APPS.filter(function (a) { return !filter || a.name.toLowerCase().indexOf(filter) >= 0; });
+  document.getElementById('st-grid').innerHTML = list.length
+    ? list.map(function (a) {
+        return '<div class="st-app" onclick="openApp(\'' + a.id + '\');closeStart()">' +
+          tile(a) + '<span>' + a.name + '</span></div>';
+      }).join('')
+    : '<div style="grid-column:1/-1;text-align:center;padding:30px;color:#767676;font-size:12px">没有匹配的应用</div>';
+}
+function toggleStart() {
+  var s = document.getElementById('start');
+  if (s.classList.contains('show')) closeStart();
+  else { s.classList.add('show'); renderStart(''); document.getElementById('st-search').value = ''; document.getElementById('st-search').focus(); }
+}
+function closeStart() { document.getElementById('start').classList.remove('show'); }
+
+/* ---------- 时钟 ---------- */
+function clock() {
+  var d = new Date();
+  var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+  var w = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+  document.getElementById('tb-clock').innerHTML =
+    '<div>' + p(d.getHours()) + ':' + p(d.getMinutes()) + '</div>' +
+    '<div class="d2">' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + w + '</div>';
+}
+
+document.addEventListener('click', function (e) {
+  var s = document.getElementById('start');
+  if (s.classList.contains('show') && !s.contains(e.target) && !e.target.closest('.tb-start')) closeStart();
+  if (!e.target.closest('.d-icon') && selEl) { selEl.classList.remove('sel'); selEl = null; }
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeStart(); });
+
+renderDeskIcons();
+renderStart('');
+clock();
+setInterval(clock, 20000);
+</script>
+</body>
+</html>

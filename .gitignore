@@ -1,0 +1,15 @@
+/target
+.idea
+storage
+
+# Ignore PowerDesigner files
+*.ldb
+*.pjb
+*.pdb
+
+# 前端
+uiam-web/node_modules
+uiam-web/dist
+
+Cargo.lock
+.DS_Store

@@ -1,0 +1,15 @@
+profile = "dev"
+
+#[db]
+url = "postgres://uiam:uiam@pgsql:5432/uiam"
+
+[web]
+port = 9002
+
+# 网关管理面一期只依赖数据库与 Consul KV：
+#   - 读库渲染 TOML，写库前做引用校验
+#   - 发布 = PUT 到 Consul KV（网关侧不回调 uiam，这是 gatex 的铁律）
+# 所以这里没有 redis / 调度器 段。
+[micro-svc.consul]
+base-url = "http://consul:8500"
+[micro-svc.consul.registry]

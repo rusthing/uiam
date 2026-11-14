@@ -1,0 +1,31 @@
+[package]
+name = "uiam-api"
+version = "1.0.0"
+edition = "2024"
+authors = ["zbz"]
+license = "MIT"
+keywords = ["uiam", "identity", "gateway", "api", "dto"]
+description = "Shared DTO, VO, and MO types for UIAM server and API client"
+categories = ["web-programming::http-server"]
+homepage = "https://github.com/rusthing/uiam"
+repository = "https://github.com/rusthing/uiam"
+readme = "README.md"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_with = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
+utoipa = { workspace = true }
+derive_setters = { workspace = true }
+typed-builder = { workspace = true }
+
+# Server-side dependencies
+sea-orm = { workspace = true, optional = true }
+o2o = { workspace = true, optional = true }
+validator = { workspace = true, optional = true, features = ["derive"] }
+
+wheel-rs = { workspace = true }
+robotech = { workspace = true, features = ["macros", "db", "openapi"] }
+
+[features]
+server = ["sea-orm", "o2o", "validator", "robotech/macros", "robotech/orm"]
