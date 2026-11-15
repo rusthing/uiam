@@ -10,6 +10,19 @@
  * 2. **`result !== 1` 也算失败**——HTTP 200 也可能是业务失败，只看 status 会静默吞错；
  * 3. **`msg` 是给人看的**——服务端把「为什么要重启」「哪个负载均衡器不存在」写在
  *    `msg` 里，直接抛给调用方展示，前端不要自己编一句「操作失败」盖掉它。
+ *
+ * ## 前缀只在这里拼一次
+ *
+ * 下面每个端点的 `path` 都写 **uiam-svr 自己认的路径**（`/uiam/gateway/list`），
+ * 服务名前缀由 `VITE_API_BASE` 提供、只在 `request` 里拼一次：
+ *
+ * | 环境 | VITE_API_BASE | 实际请求 |
+ * |---|---|---|
+ * | 开发 | 留空（vite 把 `/uiam` 直反代到 9002） | `/uiam/gateway/list` |
+ * | 生产 | `/uiam-svr`（网关前缀路由 + StripPrefix） | `/uiam-svr/uiam/gateway/list` |
+ *
+ * 别把前缀写进各端点的 path：那样开发态会变成 `/uiam/uiam/...`，而且换一次前缀
+ * 要改二十几处，迟早漏掉一个。
  */
 import type {
   Balancer,
@@ -30,6 +43,19 @@ import type {
 } from './types'
 
 const OPERATOR_KEY = 'uiam-operator-id'
+
+/**
+ * 接口服务名前缀（去掉结尾斜杠，避免拼出 `//uiam/gateway`）。
+ *
+ * 值来自 `.env.development` / `.env.production`，见文件头那张表。留空是合法值，
+ * 表示「同源、路径本身就是 uiam-svr 认的路径」。
+ */
+export const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '')
+
+/** 前缀 + 服务内部路径。`path` 一定以 `/` 开头。 */
+function withBase(path: string): string {
+  return `${API_BASE}${path}`
+}
 
 /** 当前操作者 ID。一期没有登录，用一个人工填的数字顶替，落 localStorage。 */
 export function getOperatorId(): string {
@@ -59,13 +85,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   let res: Response
   try {
-    res = await fetch(path, {
+    res = await fetch(withBase(path), {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch (e) {
-    throw new ApiError(`连不上 uiam-svr：${(e as Error).message}`, 0)
+    throw new ApiError(`连不上 uiam-svr（${withBase(path)}）：${(e as Error).message}`, 0)
   }
 
   const text = await res.text()

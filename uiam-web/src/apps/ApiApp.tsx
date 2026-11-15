@@ -3,9 +3,12 @@
  *
  * 这张表不是文档的替代品，是**排错时的第一现场**：调不通的时候要能立刻确认
  * 路径前缀、查询参数和返回信封长什么样，而不是回去翻代码。
- * 所有路径都是相对当前源站的，开发态由 Vite 代理到 uiam-svr。
+ *
+ * 表里的路径是 **uiam-svr 自己认的路径**（不含服务名前缀）——前缀由
+ * `VITE_API_BASE` 在 `lib/api.ts` 里统一拼，当前值显示在题头那一行。
  */
 import { useState } from 'react'
+import { API_BASE } from '../lib/api'
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
@@ -63,6 +66,8 @@ export function ApiApp() {
           <div className="pane-desc">
             uiam-svr 对外接口 · 统一信封 <span className="mono">{'{result, msg, timestamp, extra}'}</span> ·
             <span className="mono"> result !== 1</span> 也是失败
+            <span> · </span>
+            前缀 <span className="mono">{API_BASE || '（同源，无前缀）'}</span>
           </div>
         </div>
         <div className="pane-actions">

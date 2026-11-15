@@ -19,6 +19,12 @@ npm run dev      # http://127.0.0.1:5180
 开发服务器把 `/uiam` 反代到 `http://127.0.0.1:9002`（`vite.config.ts`），
 所以本地不需要给 uiam-svr 配 CORS，也不需要在前端写 baseURL。
 
+接口前缀只有一个来源：`.env.*` 里的 `VITE_API_BASE`，`request` 里拼一次
+（见 `src/lib/api.ts` 文件头那张对照表）。开发默认留空，生产默认 `/uiam-svr`
+——**它是网关上的服务名段，不是 uiam-svr 的内部前缀**，网关剥掉这一段之后
+uiam-svr 收到的仍是 `/uiam/gateway/list`。改生产值必须同时在网关上加同名前缀路由，
+否则浏览器打出去的是一个网关不认识的路径。
+
 ```bash
 npm run build    # 产物在 dist/，可直接交给网关做静态托管
 npm run typecheck

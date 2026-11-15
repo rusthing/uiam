@@ -80,6 +80,8 @@ npm run build    # 产物在 dist/
   在图和属性栏里显式标红
 - 主题只有 `light` / `dark` 两态，点菜单栏图标直接切，扩散圆心是图标中心（见 `src/lib/theme.ts`）
 - 一期没有登录，写接口靠「系统设置」里的操作者 ID 填 `X-User-Id`，审计落在 `release.creater_id`
-- 生产形态：`npm run build` 的 `dist/` 由 gatex 的 `[static].root-dir` 托管，`/uiam` 前缀
-  反代到 uiam-svr，两边同源不需要 CORS；dev 侧由 `vite.config.ts` 的 `/uiam` proxy 对齐
+- 生产形态：`npm run build` 的 `dist/` 由 gatex 的 `[static].root-dir` 托管，接口前缀
+  `/uiam-svr`（网关按服务名分流并 `StripPrefix`，uiam-svr 收到的仍是 `/uiam/...`）——
+  值写在 `uiam-web/.env.production` 的 `VITE_API_BASE`，两边同源不需要 CORS；dev 侧
+  由 `vite.config.ts` 的 `/uiam` proxy 对齐（`VITE_API_BASE` 留空）
 - 详细说明见 `uiam-web/README.md`
