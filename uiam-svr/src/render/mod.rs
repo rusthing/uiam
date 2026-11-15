@@ -29,12 +29,16 @@
 //!
 //! - [`renderable`]：可序列化的镜像结构 + 渲染输入
 //! - [`pipeline`]：渲染 → 合并 → 自检 → 试装配 → 结构比对
+//! - [`import`]：反向——把一份现成的 TOML 拆回结构化数据，并用「模拟渲染 +
+//!   往返比对」保证拆得无损
 //! - [`error`]：渲染期错误
 
 pub mod error;
+pub mod import;
 pub mod pipeline;
 pub mod renderable;
 
 pub use error::*;
+pub use import::*;
 pub use pipeline::*;
 pub use renderable::*;

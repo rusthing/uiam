@@ -42,6 +42,24 @@ pub enum RenderError {
     #[error("结构化配置序列化成 TOML 失败：{0}")]
     Serialize(#[from] toml::ser::Error),
 
+    /// 导入的源 TOML 解析失败
+    ///
+    /// 与 [`RenderError::ExtraToml`] 分开：那个说的是「库里存的高级配置坏了」，
+    /// 这个说的是「你贴进来的这份配置读不懂」，两者要改的地方完全不同。
+    #[error("导入的 TOML 无法解析：{source}")]
+    SourceToml {
+        /// TOML 解析错误
+        #[source]
+        source: toml::de::Error,
+    },
+
+    /// 结构化字段序列化成 JSON 失败
+    ///
+    /// 导入方向要把 `gatex` 的配置类型写进 JSON 列，理论上不会失败（同一批类型
+    /// 反方向能读），真失败说明某个字段的 serde 属性只实现了单向。
+    #[error("配置结构无法序列化成 JSON：{0}")]
+    JsonSerialize(#[from] serde_json::Error),
+
     /// 实例的 `extra_toml` 语法错误
     #[error("实例 {code} 的高级配置（extra_toml）不是合法 TOML：{source}")]
     ExtraToml {

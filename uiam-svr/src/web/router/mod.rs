@@ -1,4 +1,5 @@
 mod uiam_gateway_balancer_router;
+mod uiam_gateway_import_router;
 mod uiam_gateway_listener_router;
 mod uiam_gateway_publish_router;
 mod uiam_gateway_release_router;
