@@ -6,5 +6,5 @@ use robotech::macros::api_doc;
 /// 配置行，不碰 KV）。对应路由树 `UiamGatewayImportRouter`。
 ///
 /// 与其它 `#[api_doc]` 一样，宏**不会**自动枚举 handler，漏写就是文档里没有。
-#[api_doc(import_handler)]
+#[api_doc(import_handler, source_handler)]
 pub struct UiamGatewayImportApiDoc;

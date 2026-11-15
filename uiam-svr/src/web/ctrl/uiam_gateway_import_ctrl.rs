@@ -2,6 +2,7 @@
 //!
 //! | 方法 | 路径 | 作用 |
 //! |---|---|---|
+//! | `GET` | `/uiam/gateway/import/source/{id}` | 读出网关正在读的那份 TOML |
 //! | `POST` | `/uiam/gateway/import/{id}` | 把一份现成 TOML 拆成结构化数据写进库 |
 //!
 //! ## 为什么和发布放在同一棵 `/uiam/gateway` 下
@@ -14,18 +15,65 @@
 //!
 //! 导入会**整段替换**该实例的监听器/路由/负载均衡器，是一次真正的写操作。
 //! 操作者要记进新插入记录的 `creater_id`——一期不建审计表，这是唯一的线索。
+//! 读取原文不写库，所以不要求这个头。
 
-use crate::svc::{ImportOptions, import_gateway};
+use crate::svc::{ImportOptions, fetch_source, import_gateway};
 use axum::debug_handler;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::http::HeaderMap;
 use axum::response::Json;
 use robotech::api::Ro;
 use robotech::macros::log_call;
 use robotech::web::ctrl_utils::get_current_user_id;
 use robotech::web::CtrlError;
-use uiam_api::dto::UiamGatewayImportDto;
-use uiam_api::vo::UiamGatewayImportVo;
+use uiam_api::dto::{UiamGatewayImportDto, UiamGatewayImportSourceQuery};
+use uiam_api::vo::{UiamGatewayImportSourceVo, UiamGatewayImportVo};
+
+/// # 读取网关正在读的 TOML
+///
+/// 从 Consul KV 里把该实例的配置原文拉出来。导入弹窗用它做「一键取线上配置」，
+/// 免得接管时还得 ssh 上去 `curl` 一遍——那一步既容易抄错，也没法留痕。
+///
+/// ## 路径参数
+/// * `id` - 网关实例 ID
+///
+/// ## 查询参数
+/// * `consulKey` - 临时指定要读的 key；不传则用实例自己的 `consulKey`
+///
+/// ## 返回值
+/// * `Ro<UiamGatewayImportSourceVo>` - TOML 原文、完整 key、`ModifyIndex`
+/// * key 不存在不算错：`found = false` 且 `note` 里说明原因
+/// * Consul 读失败：500，`msg` 里带完整 key 与原因
+#[utoipa::path(
+    get,
+    path = "/uiam/gateway/import/source/{id}",
+    params(
+        ("id" = u64, Path, description = "网关实例 ID"),
+        ("consulKey" = Option<String>, Query, description = "临时指定要读的 KV key")
+    ),
+    responses((status = OK, body = Ro<UiamGatewayImportSourceVo>))
+)]
+#[debug_handler]
+#[log_call]
+pub async fn source_handler(
+    Path(id): Path<u64>,
+    Query(query): Query<UiamGatewayImportSourceQuery>,
+) -> Result<Json<Ro<UiamGatewayImportSourceVo>>, CtrlError> {
+    let data = fetch_source(id, query.consul_key).await?;
+
+    let message = if data.found {
+        format!(
+            "已读取 [{}]：{} 字节（ModifyIndex {}）",
+            data.full_key,
+            data.content.len(),
+            data.modify_index.unwrap_or_default()
+        )
+    } else {
+        format!("[{}] 里没有内容", data.full_key)
+    };
+
+    Ok(Json(Ro::success(message).extra(Some(data))))
+}
 
 /// # 导入现有 TOML
 ///

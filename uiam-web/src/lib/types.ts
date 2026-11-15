@@ -153,3 +153,49 @@ export interface BalancerPayload {
   remark?: string | null
   enabled: boolean
 }
+
+/**
+ * 导入现有 TOML 的载荷。
+ *
+ * `dryRun` 默认 `false` 但界面上**永远先跑一次预演**：导入是整段替换，
+ * 库里多一条少一条路由都不会报错，只有预演能提前看见。
+ */
+export interface GatewayImportPayload {
+  toml: string
+  /** 顺带把实例的 consulKey 改成这个值；不传则保持原值 */
+  consulKey?: string | null
+  dryRun: boolean
+}
+
+/** 导入结果：拆出多少、跟线上 KV 是否一致、有没有要人看一眼的地方 */
+export interface GatewayImportResult {
+  gatewayId: string
+  dryRun: boolean
+  applied: boolean
+  httpListeners: number
+  tcpListeners: number
+  httpRoutes: number
+  tcpRoutes: number
+  balancers: number
+  consulKey: string
+  checksum: string
+  /** 导入后渲染出的完整 TOML（就是发布会写进 KV 的那份字节流） */
+  toml: string
+  kvChecked: boolean
+  /** true=库里与线上一致（发布不改行为）；false=看 kvDiff；null=没比对 */
+  kvMatches: boolean | null
+  kvDiff: string[]
+  warnings: string[]
+}
+
+/** 线上配置原文：导入弹窗第一步「从 Consul 读取」的返回 */
+export interface GatewayImportSource {
+  gatewayId: string
+  consulKey: string
+  fullKey: string
+  found: boolean
+  content: string
+  /** Consul 的 ModifyIndex（普通 u64，不是 U64 包装，所以是数字） */
+  modifyIndex: number | null
+  note: string | null
+}

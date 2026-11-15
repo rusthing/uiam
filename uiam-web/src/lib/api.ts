@@ -15,6 +15,9 @@ import type {
   Balancer,
   BalancerPayload,
   Gateway,
+  GatewayImportPayload,
+  GatewayImportResult,
+  GatewayImportSource,
   GatewayPayload,
   Listener,
   ListenerPayload,
@@ -145,5 +148,20 @@ export const api = {
       request<PublishResult>('POST', `/uiam/gateway/publish/${gatewayId}`, opts),
     rollback: (releaseId: string, opts: { confirmRestart: boolean }) =>
       request<PublishResult>('POST', `/uiam/gateway/rollback/${releaseId}`, opts),
+  },
+  importToml: {
+    /**
+     * 把网关正在读的那份 TOML 从 Consul 拉出来。
+     *
+     * `found === false` 不是错误：key 不存在时后端仍返回 200，`note` 里说明原因。
+     */
+    source: (gatewayId: string, consulKey?: string) =>
+      request<GatewayImportSource>(
+        'GET',
+        `/uiam/gateway/import/source/${gatewayId}` + qs({ consulKey }),
+      ),
+    /** `dryRun: true` 只校验不落库；正式导入会**整段替换**该实例的结构化数据 */
+    run: (gatewayId: string, payload: GatewayImportPayload) =>
+      request<GatewayImportResult>('POST', `/uiam/gateway/import/${gatewayId}`, payload),
   },
 }

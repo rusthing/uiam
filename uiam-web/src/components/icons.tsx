@@ -61,6 +61,14 @@ export const IconUpload = (p: Props) => (
   </Svg>
 )
 
+/** 导入：箭头进托盘。与 IconUpload（箭头出托盘）方向相反，一眼能区分推上去和拉下来 */
+export const IconImport = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 4v12M7 11l5 5 5-5" />
+    <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+  </Svg>
+)
+
 export const IconUndo = (p: Props) => (
   <Svg {...p}>
     <path d="M3 7v6h6" />

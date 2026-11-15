@@ -19,13 +19,16 @@ import { useGatewayList } from '../state/GatewayList'
 import { useGatewayTree } from '../state/useGatewayTree'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GatewayForm } from '../components/GatewayForm'
+import { ImportDialog } from '../components/ImportDialog'
 import { PublishDialog, PreviewDrawer, ResultDialog } from '../components/Publish'
 import { useToast } from '../components/Toast'
 import { Badge, cx, Empty, Spinner } from '../components/ui'
 import {
+  IconAlert,
   IconEdit,
   IconEye,
   IconHistory,
+  IconImport,
   IconPlus,
   IconRefresh,
   IconRoute,
@@ -73,6 +76,7 @@ export function GatewayApp() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   // ---- 发布链路状态 ----
   const [preview, setPreview] = useState<RenderPreview | undefined>(undefined)
@@ -301,6 +305,13 @@ export function GatewayApp() {
                 <button className="btn btn-sm" onClick={() => setEditOpen(true)}>
                   <IconEdit size={13} /> 编辑
                 </button>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setImportOpen(true)}
+                  title="把线上正在跑的 TOML 拆成结构化配置落库（接管线上网关的第一步）"
+                >
+                  <IconImport size={13} /> 导入
+                </button>
                 <button className="btn btn-sm" onClick={openPreview}>
                   <IconEye size={13} /> 渲染预览
                 </button>
@@ -331,6 +342,26 @@ export function GatewayApp() {
                 </button>
               ))}
             </div>
+
+            {/* 库里一条监听器都没有，等于「这个实例还没被接管」。
+                这时候点发布不是「发布空配置」，是「把线上正在跑的路由全删掉」——
+                必须在这一屏就拦住，不能等用户自己发现。 */}
+            {!tree.loading && !tree.error && tree.listeners.length === 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[color-mix(in_srgb,var(--warn)_38%,transparent)] bg-warn-soft px-3 py-2.5 text-[12.5px] leading-relaxed text-ink">
+                <IconAlert size={14} />
+                <span>
+                  这个实例在库里还没有任何监听器和路由。
+                  <b>现在点发布会把线上正在跑的配置覆盖成空配置</b>
+                  ——先「导入」一份线上 TOML，把库里的数据对齐。
+                </span>
+                <button
+                  className="btn btn-sm ml-auto shrink-0"
+                  onClick={() => setImportOpen(true)}
+                >
+                  <IconImport size={13} /> 导入现有 TOML
+                </button>
+              </div>
+            )}
 
             {tree.error && (
               <div
@@ -402,6 +433,18 @@ export function GatewayApp() {
           gateway={gateway}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
+            reloadList()
+            tree.reload()
+          }}
+        />
+      )}
+
+      {gateway && (
+        <ImportDialog
+          open={importOpen}
+          gateway={gateway}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
             reloadList()
             tree.reload()
           }}

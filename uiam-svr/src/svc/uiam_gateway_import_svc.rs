@@ -45,7 +45,7 @@ use robotech::svc::SvcError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 use std::borrow::Cow;
 use tracing::warn;
-use uiam_api::vo::{UiamGatewayImportVo, UiamGatewayVo};
+use uiam_api::vo::{UiamGatewayImportSourceVo, UiamGatewayImportVo, UiamGatewayVo};
 
 /// # 导入选项
 #[derive(Debug, Clone)]
@@ -56,6 +56,94 @@ pub struct ImportOptions {
     pub dry_run: bool,
     /// 同时把实例的 `consul_key` 改成这个值；`None` 表示不动
     pub consul_key: Option<String>,
+}
+
+/// # 读取线上配置原文
+///
+/// 导入弹窗的第一步：把网关**正在读**的那份 TOML 从 Consul KV 里拉出来。
+///
+/// ## 参数
+/// - `gateway_id`：网关实例 id
+/// - `consul_key`：临时指定要读的 key；`None` 表示读实例自己的 `consul_key`
+///
+/// ## 返回值
+/// [`UiamGatewayImportSourceVo`]：TOML 原文、完整 key、`ModifyIndex`
+///
+/// ## 错误
+/// - 实例不存在：404
+/// - key 不合法（空 / 带 `/`）：400
+/// - Consul 不可达或读失败：500，`msg` 里带完整 key 与原因
+///
+/// ## 为什么「key 不存在」不是错误
+///
+/// 从没发布过、或者有人手工删了 key，都属于「读不到但服务本身没问题」。
+/// 报 500 会让用户以为是服务挂了；返回 `found = false` 加一句说明，
+/// 用户才知道下一步该「贴一份 TOML 进来」而不是「去查 Consul」。
+pub async fn fetch_source(
+    gateway_id: u64,
+    consul_key: Option<String>,
+) -> Result<UiamGatewayImportSourceVo, SvcError> {
+    let db = get_db_conn()?;
+    fetch_source_with_db(db.as_ref(), gateway_id, consul_key).await
+}
+
+/// # 读取线上配置原文（指定连接）
+///
+/// 与 [`fetch_source`] 相同，连接由调用方给。
+///
+/// ## 参数
+/// - `db`：数据库连接
+/// - `gateway_id`：网关实例 id
+/// - `consul_key`：临时指定的 key
+///
+/// ## 返回值
+/// 同 [`fetch_source`]
+pub async fn fetch_source_with_db<C>(
+    db: &C,
+    gateway_id: u64,
+    consul_key: Option<String>,
+) -> Result<UiamGatewayImportSourceVo, SvcError>
+where
+    C: ConnectionTrait + Sync,
+{
+    let gateway = GatewayEntity::find_by_id(to_i64(gateway_id)?)
+        .one(db)
+        .await
+        .map_err(db_err)?
+        .ok_or_else(|| SvcError::NotFound(format!("网关实例#{gateway_id}不存在")))?;
+
+    let key = resolve_consul_key(&gateway.consul_key, consul_key.as_deref())?;
+    let kv = get_consul_kv().map_err(kv_err)?;
+    let full_key = kv.full_key(&key);
+
+    let (found, content, modify_index, note) = match kv.get(&key).await {
+        Ok(Some(read)) => (true, read.content, Some(read.modify_index), None),
+        Ok(None) => (
+            false,
+            String::new(),
+            None,
+            Some(format!(
+                "Consul KV [{full_key}] 里没有这个 key——可能从没发布过，或者被人手工删了。\
+                 可以直接把 TOML 贴进来导入。"
+            )),
+        ),
+        Err(err) => {
+            warn!("读取 Consul KV [{full_key}] 失败：{err}");
+            return Err(SvcError::Runtime(anyhow::anyhow!(
+                "读取 Consul KV [{full_key}] 失败：{err}"
+            )));
+        }
+    };
+
+    Ok(UiamGatewayImportSourceVo {
+        gateway_id: U64(gateway_id),
+        consul_key: key,
+        full_key,
+        found,
+        content,
+        modify_index,
+        note,
+    })
 }
 
 /// # 导入一份 TOML
@@ -512,6 +600,14 @@ fn import_err(err: crate::render::RenderError) -> SvcError {
 /// `u64` 转 `i64`，越界给一句人话
 fn to_i64(id: u64) -> Result<i64, SvcError> {
     i64::try_from(id).map_err(|_| validation("id", "ID 超出范围"))
+}
+
+/// # KV 客户端错误转成 `SvcError`
+///
+/// 走 `Runtime`（500）：客户端没初始化是**部署配置**的问题（`[consul]` 没配
+/// 或配错），不是用户参数错了，让他改输入没有意义。
+fn kv_err(err: crate::kv::KvError) -> SvcError {
+    SvcError::Runtime(anyhow::anyhow!("{err}"))
 }
 
 /// 库错误转成 `SvcError`

@@ -37,3 +37,16 @@ pub struct UiamGatewayImportDto {
     #[serde(default)]
     pub dry_run: bool,
 }
+
+/// # 读取线上配置的查询串
+///
+/// 只用来在「导入」前把网关正在读的那份 TOML 拉出来。`consulKey` 留空时读
+/// 实例自己的 key——绝大多数情况都该留空，只有在「实例的 key 还指错地方」
+/// 时才有必要临时指定。
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UiamGatewayImportSourceQuery {
+    /// 临时指定要读的 KV key；不传则用实例的 `consul_key`
+    #[serde(default)]
+    pub consul_key: Option<String>,
+}

@@ -72,3 +72,40 @@ pub struct UiamGatewayImportVo {
     /// 这份 TOML 里没有监听器、以及落库后复验发现的不一致。
     pub warnings: Vec<String>,
 }
+
+/// # 线上配置的原文
+///
+/// 导入弹窗的第一步：把网关**正在读**的那份 TOML 从 Consul 拉出来，填进
+/// 编辑框，用户确认后再走预演 / 导入。
+///
+/// 没有这个接口的话，接管线上网关就得先 ssh 上去 `curl` 一遍 KV——那一步
+/// 既容易抄错（少一个换行、多了响应头），也没法在界面上留痕。
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UiamGatewayImportSourceVo {
+    /// 网关实例ID
+    pub gateway_id: U64,
+
+    /// 该实例的 Consul KV key（裸 key，不含环境前缀）
+    pub consul_key: String,
+
+    /// 实际请求的完整 key（含环境前缀），排错时看这个
+    pub full_key: String,
+
+    /// KV 里到底有没有这个 key
+    ///
+    /// `false` 时 `content` 是空串，`note` 里说明原因。这不是错误：
+    /// 从没发布过、或者 key 被删了，都属于「读不到但服务本身没问题」。
+    pub found: bool,
+
+    /// TOML 原文
+    pub content: String,
+
+    /// Consul 的 `ModifyIndex`，`found = false` 时为 `null`
+    ///
+    /// 同一个 key 被写过就会变。用户拿它判断「我看到的这份是不是刚被人改过」。
+    pub modify_index: Option<u64>,
+
+    /// `found = false` 时的说明
+    pub note: Option<String>,
+}
