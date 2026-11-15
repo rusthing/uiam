@@ -4,7 +4,7 @@
  * 搜索匹配名字和描述两处——「发布」这个词不在应用名里，但在「网关配置」的描述里，
  * 按描述匹配能让「我想发布配置」这种意图也能搜到。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { APPS } from '../apps/meta'
 import { AppTile } from '../apps/AppTile'
 import { cx } from '../components/ui'
@@ -47,10 +47,11 @@ export function Launchpad() {
         onChange={(e) => setQ(e.target.value)}
       />
       <div className="lp-grid">
-        {list.map((a) => (
+        {list.map((a, i) => (
           <button
             key={a.id}
             className="lp-app"
+            style={{ ['--i' as string]: i } as CSSProperties}
             onClick={() => {
               shell.openApp(a.id)
               shell.setLaunchpad(false)

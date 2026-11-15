@@ -95,12 +95,18 @@ export function Desktop() {
           {layout.length === 0 && (
             <div className="wg-empty">桌面是空的 —— 点右上角「编辑桌面」添加组件</div>
           )}
-          {layout.map((it) => (
+          {layout.map((it, i) => (
             <div
               key={it.id}
               className={cx('widget', dragId === it.id && 'dragging')}
               data-id={it.id}
-              style={{ ['--w' as string]: it.w, ['--h' as string]: it.h } as CSSProperties}
+              style={
+                {
+                  ['--w' as string]: it.w,
+                  ['--h' as string]: it.h,
+                  ['--i' as string]: i,
+                } as CSSProperties
+              }
               draggable={shell.editing}
               onDragStart={(e) => onDragStart(e, it.id)}
               onDragOver={(e) => onDragOver(e, it.id)}

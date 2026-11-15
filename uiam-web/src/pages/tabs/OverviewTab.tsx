@@ -29,7 +29,7 @@ export function OverviewTab({
 
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="metrics">
         <Stat label="HTTP 监听器" value={httpCount} hint={`启用 ${tree.listeners.filter((l) => l.kind === 1 && l.enabled).length}`} />
         <Stat label="TCP 监听器" value={tcpCount} hint={`启用 ${tree.listeners.filter((l) => l.kind === 2 && l.enabled).length}`} />
         <Stat label="生效路由" value={activeRoutes.length} hint={`共 ${tree.routes.length} 条`} />

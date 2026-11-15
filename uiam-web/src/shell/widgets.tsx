@@ -82,19 +82,34 @@ function EnabledWidget() {
   const enabled = gateways.filter((g) => g.enabled).length
   const pct = gateways.length ? Math.round((enabled / gateways.length) * 100) : 0
   const disabled = gateways.length - enabled
+  // 环的周长固定（r=18），只改 dashoffset——不新增任何布局计算
+  const C = 2 * Math.PI * 18
   return (
     <>
       <div className="wg-k">启用中</div>
-      <div className="wg-kpi">
-        <div className="wg-num">
-          {enabled}
-          <small>/ {gateways.length}</small>
-        </div>
+      <div className="wg-kpi row">
         <div>
-          <span className={`wg-trend${disabled > 0 ? ' down' : ''}`}>
-            {disabled > 0 ? `▲ ${disabled} 个停用` : `▲ ${pct}%`}
-          </span>
+          <div className="wg-num">
+            {enabled}
+            <small>/ {gateways.length}</small>
+          </div>
+          <div>
+            <span className={`wg-trend${disabled > 0 ? ' down' : ''}`}>
+              {disabled > 0 ? `▲ ${disabled} 个停用` : `▲ ${pct}%`}
+            </span>
+          </div>
         </div>
+        <svg className="wg-ring" viewBox="0 0 44 44" aria-hidden="true">
+          <circle className="track" cx="22" cy="22" r="18" />
+          <circle
+            className="val"
+            cx="22"
+            cy="22"
+            r="18"
+            strokeDasharray={C}
+            strokeDashoffset={C * (1 - pct / 100)}
+          />
+        </svg>
       </div>
     </>
   )
@@ -122,6 +137,7 @@ function AppsWidget() {
 function NodesWidget() {
   const { gateways, loading, error, reload } = useOverview()
   const shell = useShell()
+  const enabled = gateways.filter((g) => g.enabled).length
   if (error) {
     return (
       <>
@@ -171,6 +187,17 @@ function NodesWidget() {
           </div>
         )}
       </div>
+      {gateways.length > 0 && (
+        <div className="wg-sum">
+          <span>
+            <b>{enabled}</b> 启用
+          </span>
+          <span>
+            <b>{gateways.length - enabled}</b> 停用
+          </span>
+          <span className="wg-sum-all">共 {gateways.length} 个实例</span>
+        </div>
+      )}
     </>
   )
 }

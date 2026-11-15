@@ -15,83 +15,102 @@
   --font:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', 'PingFang SC',
     'Hiragino Sans GB', sans-serif;
+  /* 大字号用 Display 档：同一字族，但字距与笔画对比更适合标题 */
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', 'PingFang SC',
+    'Hiragino Sans GB', sans-serif;
   --mono: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 
+  /* 动效曲线只留两条：一条进场的「快出慢停」，一条状态切换的匀称缓动。
+     多一条就会在不同组件里各用各的，节奏立刻散掉 */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur: 0.18s;
+
   /* ---- 原型令牌 ---- */
-  --body-bg: #fdfdfe;
-  --win-bg: rgba(252, 252, 253, 0.965);
-  --win-radius: 13px;
-  --bar-h: 42px;
-  --t1: #1d1d1f;
-  --t2: #4b4b4f;
-  --t3: #8a8a8f;
-  --line: rgba(0, 0, 0, 0.055);
-  --line-soft: rgba(0, 0, 0, 0.038);
+  --body-bg: #fbfbfd;
+  --win-bg: rgba(250, 250, 252, 0.972);
+  --win-radius: 14px;
+  --bar-h: 44px;
+  --t1: #17171a;
+  --t2: #4a4a50;
+  --t3: #83838a;
+  --line: rgba(18, 18, 28, 0.058);
+  --line-soft: rgba(18, 18, 28, 0.038);
   --accent: #0a84ff;
-  --accent-soft: rgba(10, 132, 255, 0.13);
-  --hover: rgba(10, 132, 255, 0.055);
-  --side-bg: rgba(246, 246, 248, 0.55);
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --hover: rgba(10, 132, 255, 0.05);
+  --side-bg: rgba(246, 246, 249, 0.58);
   --radius-sm: 7px;
   --wg-bg: rgba(252, 252, 254, 0.9);
-  --wg-t1: #17171a;
-  --wg-t2: #55555c;
+  --wg-t1: #131316;
+  --wg-t2: #5a5a62;
   --wg-line: rgba(0, 0, 0, 0.07);
 
   /* ---- 业务组件语义别名 ---- */
   --canvas: var(--body-bg);
   --surface: var(--body-bg);
   --surface-strong: #ffffff;
-  --surface-sunken: rgba(120, 120, 128, 0.09);
+  --surface-sunken: rgba(120, 120, 128, 0.075);
   --surface-hover: var(--hover);
-  --line-strong: rgba(0, 0, 0, 0.14);
+  --line-strong: rgba(18, 18, 28, 0.13);
   --ink: var(--t1);
   --ink-soft: var(--t2);
   --ink-mute: var(--t3);
   --brand: var(--accent);
   --brand-ink: #ffffff;
   --brand-soft: var(--accent-soft);
-  --brand-line: rgba(10, 132, 255, 0.38);
-  --ok: #1a8f3c;
-  --ok-soft: rgba(52, 199, 89, 0.14);
-  --warn: #9a5b00;
-  --warn-soft: rgba(255, 159, 10, 0.16);
-  --danger: #c1271c;
-  --danger-soft: rgba(255, 59, 48, 0.12);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.22);
-  --shadow-lg: 0 24px 64px -24px rgba(0, 0, 0, 0.34);
+  --brand-line: rgba(10, 132, 255, 0.36);
+  --ok: #14803a;
+  --ok-soft: rgba(52, 199, 89, 0.13);
+  --warn: #94570a;
+  --warn-soft: rgba(255, 159, 10, 0.15);
+  --danger: #bf2419;
+  --danger-soft: rgba(255, 59, 48, 0.11);
+
+  /* 阴影分两层：近处一层贴地（0 1px），远处一层给体量。
+     只有一层的「大模糊」看起来像贴纸，没有重量 */
+  --shadow-sm: 0 1px 2px rgba(16, 18, 32, 0.05), 0 1px 1px rgba(16, 18, 32, 0.03);
+  --shadow-md:
+    0 1px 2px rgba(16, 18, 32, 0.05), 0 10px 26px -12px rgba(16, 18, 32, 0.2);
+  --shadow-lg:
+    0 1px 3px rgba(16, 18, 32, 0.06), 0 28px 68px -26px rgba(16, 18, 32, 0.34),
+    0 6px 18px -10px rgba(16, 18, 32, 0.16);
 }
 
 [data-theme='dark'] {
-  --body-bg: #1e1e21;
-  --win-bg: rgba(38, 38, 42, 0.965);
-  --t1: #f5f5f7;
-  --t2: #c7c7cc;
-  --t3: #8e8e93;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-soft: rgba(255, 255, 255, 0.055);
-  --hover: rgba(10, 132, 255, 0.15);
-  --accent-soft: rgba(10, 132, 255, 0.22);
-  --side-bg: rgba(52, 52, 56, 0.42);
+  --body-bg: #1a1a1e;
+  --win-bg: rgba(33, 33, 38, 0.972);
+  --t1: #f4f4f7;
+  --t2: #c3c3ca;
+  --t3: #8b8b93;
+  --line: rgba(255, 255, 255, 0.085);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --hover: rgba(10, 132, 255, 0.14);
+  --accent-soft: rgba(10, 132, 255, 0.2);
+  --side-bg: rgba(48, 48, 54, 0.45);
   --wg-bg: rgba(30, 30, 36, 0.88);
-  --wg-t1: #f2f2f5;
-  --wg-t2: #9d9da5;
+  --wg-t1: #f1f1f5;
+  --wg-t2: #a9a9b3;
   --wg-line: rgba(255, 255, 255, 0.1);
 
-  --surface-strong: #26262a;
-  --surface-sunken: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.16);
-  --brand-soft: rgba(10, 132, 255, 0.22);
-  --brand-line: rgba(10, 132, 255, 0.5);
-  --ok: #6ee7a0;
-  --ok-soft: rgba(52, 199, 89, 0.2);
-  --warn: #ffcc66;
-  --warn-soft: rgba(255, 159, 10, 0.2);
-  --danger: #ff8a80;
-  --danger-soft: rgba(255, 69, 58, 0.2);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.66);
-  --shadow-lg: 0 24px 64px -24px rgba(0, 0, 0, 0.8);
+  --surface-strong: #26262c;
+  --surface-sunken: rgba(255, 255, 255, 0.06);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --brand-soft: rgba(10, 132, 255, 0.2);
+  --brand-line: rgba(10, 132, 255, 0.48);
+  --ok: #5fdc96;
+  --ok-soft: rgba(52, 199, 89, 0.17);
+  --warn: #f5c25c;
+  --warn-soft: rgba(255, 159, 10, 0.17);
+  --danger: #ff8b81;
+  --danger-soft: rgba(255, 69, 58, 0.17);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.46), 0 1px 1px rgba(0, 0, 0, 0.3);
+  --shadow-md:
+    0 1px 2px rgba(0, 0, 0, 0.46), 0 10px 26px -12px rgba(0, 0, 0, 0.62);
+  --shadow-lg:
+    0 1px 3px rgba(0, 0, 0, 0.5), 0 28px 68px -26px rgba(0, 0, 0, 0.78),
+    0 6px 18px -10px rgba(0, 0, 0, 0.42);
 }
 
 /* 让 Tailwind 的语义色工具类（bg-surface / text-ink / border-line …）跟着变量走 */
@@ -200,23 +219,27 @@ code,
 /* ============================================================
    壁纸
    ============================================================ */
+/* 壁纸是全站唯一的大面积色彩来源，所以它必须**一层就够**：
+   一条从靛蓝到余烬的斜向主色带，上面压三团柔和的极光，再叠颗粒与暗角。
+   全部是静态渐变 + 一张平铺的噪点图：只在首次绘制时算一次，
+   桌面拖动窗口时不会因为「模糊/混合模式」每帧重算。 */
 .desktop {
   position: fixed;
   inset: 0;
-  background:
-    radial-gradient(ellipse 62% 52% at 18% 12%, rgba(110, 175, 255, 0.6) 0%, transparent 62%),
-    radial-gradient(ellipse 56% 46% at 82% 16%, rgba(232, 120, 214, 0.5) 0%, transparent 60%),
-    radial-gradient(ellipse 74% 56% at 52% 102%, rgba(255, 148, 104, 0.58) 0%, transparent 64%),
-    radial-gradient(ellipse 48% 42% at 26% 82%, rgba(146, 120, 255, 0.42) 0%, transparent 62%),
-    radial-gradient(ellipse 40% 36% at 70% 62%, rgba(255, 205, 120, 0.28) 0%, transparent 60%),
+  background-color: #101528;
+  background-image:
+    radial-gradient(70% 52% at 84% 6%, rgba(206, 112, 255, 0.38) 0%, transparent 62%),
+    radial-gradient(74% 58% at 10% 14%, rgba(72, 146, 255, 0.5) 0%, transparent 64%),
+    radial-gradient(64% 46% at 28% 74%, rgba(138, 104, 255, 0.34) 0%, transparent 66%),
+    radial-gradient(96% 62% at 56% 106%, rgba(255, 146, 92, 0.5) 0%, transparent 62%),
     linear-gradient(
-      166deg,
-      #171d36 0%,
-      #2a2148 26%,
-      #43294f 48%,
-      #6b3557 68%,
-      #9c4f52 86%,
-      #c26b4e 100%
+      168deg,
+      #0e1526 0%,
+      #1b1a38 20%,
+      #33204a 40%,
+      #572b52 58%,
+      #853f4b 78%,
+      #ad5a42 100%
     );
 }
 .desktop::before {
@@ -225,9 +248,10 @@ code,
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: rgba(6, 6, 10, 0.34);
+  /* 深色模式把整张壁纸压下去，但留一点冷暖对比，不是简单盖一层黑 */
+  background: linear-gradient(180deg, rgba(4, 6, 14, 0.5), rgba(6, 6, 12, 0.38));
   opacity: 0;
-  transition: opacity 0.28s;
+  transition: opacity 0.28s var(--ease-soft);
 }
 [data-theme='dark'] .desktop::before {
   opacity: 1;
@@ -237,9 +261,16 @@ code,
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 120% 60% at 50% 128%, rgba(0, 0, 0, 0.34), transparent 62%),
-    radial-gradient(ellipse 60% 40% at 50% -10%, rgba(255, 255, 255, 0.07), transparent 60%);
+  /* 噪点用 160px 的 SVG 平铺，透明度写进图里，避免整层再乘一次 opacity；
+     暗角让四周收住，第一眼的注意力落在中间那排窗口上 */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.055'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 122% 62% at 50% 130%, rgba(0, 0, 0, 0.4), transparent 62%),
+    radial-gradient(ellipse 66% 44% at 50% -12%, rgba(255, 255, 255, 0.1), transparent 60%);
+  background-size:
+    160px 160px,
+    auto,
+    auto;
 }
 
 /* ============================================================
@@ -251,39 +282,49 @@ code,
   left: 0;
   right: 0;
   height: 26px;
-  background: rgba(255, 255, 255, 0.1);
+  /* 顶栏是一条压在壁纸上的玻璃：上半透白、下半更透，底部一条 0.5px 亮线收边。
+     和窗口一样不用 backdrop-filter——它永远在画面上，一旦重绘就要重算整条模糊 */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.055));
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 11px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.96);
+  color: rgba(255, 255, 255, 0.97);
   z-index: 9600;
-  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.1);
   transition: background 0.28s;
 }
 [data-theme='dark'] .menubar {
-  background: rgba(0, 0, 0, 0.26);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.2));
 }
 .mb-left {
   display: flex;
   align-items: center;
+  gap: 1px;
 }
 .mb-item {
   padding: 2px 9px;
-  border-radius: 5px;
+  border-radius: 6px;
   white-space: nowrap;
+  letter-spacing: 0.1px;
+  transition: background 0.12s var(--ease-soft);
 }
 .mb-item:hover {
   background: rgba(255, 255, 255, 0.17);
 }
 .mb-item.app-name {
   font-weight: 600;
+  letter-spacing: 0;
 }
 .mb-logo {
   padding: 2px 9px 2px 4px;
   display: flex;
   align-items: center;
-  border-radius: 5px;
+  border-radius: 6px;
+  opacity: 0.97;
+  transition: background 0.12s var(--ease-soft);
 }
 .mb-logo:hover {
   background: rgba(255, 255, 255, 0.17);
@@ -292,14 +333,15 @@ code,
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 .mb-status {
   padding: 2px 7px;
-  border-radius: 5px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   cursor: default;
+  transition: background 0.12s var(--ease-soft);
 }
 .mb-status:hover {
   background: rgba(255, 255, 255, 0.17);
@@ -307,19 +349,27 @@ code,
 .mb-clock {
   padding: 2px 8px;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1px;
+  opacity: 0.95;
 }
 .mb-act {
-  background: rgba(255, 255, 255, 0.16);
-  margin-right: 5px;
+  background: rgba(255, 255, 255, 0.15);
+  margin-right: 6px;
+  padding: 2px 10px;
   font-size: 11.5px;
-  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.28);
+  font-weight: 500;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.12);
 }
 .mb-act:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.26);
 }
 .mb-act.on {
   background: #0a84ff;
-  box-shadow: none;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.32),
+    0 2px 10px -2px rgba(10, 132, 255, 0.9);
 }
 
 /* ============================================================
@@ -358,34 +408,36 @@ code,
   overflow: hidden;
   min-width: 460px;
   min-height: 280px;
+  /* 四层：贴边 hairline、远景体积、近景接触影、顶部内高光。
+     窗口是画面里最重的一层，投影必须比组件多一档，否则会「飘」在壁纸上 */
   box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.18),
-    0 28px 70px -12px rgba(0, 0, 0, 0.46),
-    0 4px 14px rgba(0, 0, 0, 0.14),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.72);
+    0 0 0 0.5px rgba(0, 0, 0, 0.16),
+    0 46px 100px -32px rgba(4, 8, 20, 0.6),
+    0 14px 34px -14px rgba(4, 8, 20, 0.28),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
 }
 .window.open {
   display: flex;
 }
 .window.focus {
   box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.22),
-    0 34px 88px -10px rgba(0, 0, 0, 0.54),
-    0 6px 20px rgba(0, 0, 0, 0.18),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.85);
+    0 0 0 0.5px rgba(0, 0, 0, 0.2),
+    0 56px 120px -30px rgba(4, 8, 20, 0.66),
+    0 18px 44px -16px rgba(4, 8, 20, 0.34),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.95);
 }
 [data-theme='dark'] .window {
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.12),
-    0 28px 70px -12px rgba(0, 0, 0, 0.66),
-    0 4px 14px rgba(0, 0, 0, 0.36),
+    0 0 0 0.5px rgba(255, 255, 255, 0.11),
+    0 46px 100px -32px rgba(0, 0, 0, 0.78),
+    0 14px 34px -14px rgba(0, 0, 0, 0.5),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
 }
 [data-theme='dark'] .window.focus {
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.16),
-    0 34px 88px -10px rgba(0, 0, 0, 0.74),
-    0 6px 20px rgba(0, 0, 0, 0.44),
+    0 0 0 0.5px rgba(255, 255, 255, 0.15),
+    0 56px 120px -30px rgba(0, 0, 0, 0.86),
+    0 18px 44px -16px rgba(0, 0, 0, 0.58),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
 }
 .window.max {
@@ -395,17 +447,19 @@ code,
   height: calc(100% - 128px) !important;
   border-radius: 12px;
 }
+/* 入场只做一次、只动 compositor 的两个属性：
+   0.24s 的弹性缩放 + 轻微上浮，比纯淡入更像「一扇窗被放下」 */
 .window.animating {
-  animation: winIn 0.18s cubic-bezier(0.2, 0.9, 0.32, 1);
+  animation: winIn 0.26s var(--ease) both;
 }
 @keyframes winIn {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.955) translateY(8px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
@@ -415,13 +469,23 @@ code,
   display: grid;
   grid-template-columns: 96px 1fr 96px;
   align-items: center;
-  background: transparent;
+  /* 标题栏比内容区亮半档：光从上方来，窗口因此有「顶面」 */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
   padding: 0 13px;
-  border-bottom: none;
+  border-bottom: 0.5px solid transparent;
+  transition: border-color 0.2s;
+}
+[data-theme='dark'] .win-bar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0));
+}
+.window.focus .win-bar {
+  border-bottom-color: var(--line-soft);
 }
 .win-title {
+  font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: -0.1px;
   color: var(--t1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -433,6 +497,7 @@ code,
 }
 .window:not(.focus) .win-title {
   color: var(--t3);
+  font-weight: 500;
 }
 .win-title .mini {
   width: 16px;
@@ -606,23 +671,87 @@ code,
 }
 .widget {
   position: relative;
+  isolation: isolate;
+  /* 组件自己就是容器：内部按「这一块有多宽」调整排布，而不是看浏览器视口
+     （窗口和组件都能被拖大拖小，视口宽度跟它们没关系） */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   grid-column: span var(--w, 1);
   grid-row: span var(--h, 1);
-  padding: 13px 15px 14px;
-  border-radius: 18px;
+  padding: 14px 16px 15px;
+  border-radius: 20px;
   background: var(--wg-bg);
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.34),
-    0 12px 30px -8px rgba(0, 0, 0, 0.26),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.55);
+    0 0 0 0.5px rgba(255, 255, 255, 0.36),
+    0 18px 40px -14px rgba(4, 8, 20, 0.34),
+    0 2px 6px rgba(4, 8, 20, 0.1),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.62);
   color: var(--wg-t1);
   overflow: hidden;
   transition:
-    box-shadow 0.2s,
+    box-shadow 0.22s var(--ease-soft),
+    transform 0.22s var(--ease),
     background 0.28s,
     color 0.28s;
+  /* 入场：一次性错峰，只动 opacity/transform。组件重排时 key 不变，
+     不会因为父组件重渲染而重播 */
+  animation: wg-in 0.5s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes wg-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* 每类组件一层极淡的色晕：从右上角往里散，只在卡片内部，
+   不参与布局、不拦截事件，也不产生额外的合成层（radial-gradient 是静态绘制） */
+.widget::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 92% at 100% 0%,
+    var(--wg-aura, rgba(255, 255, 255, 0.1)),
+    transparent 68%
+  );
+}
+.widget > * {
+  position: relative;
+  z-index: 1;
+}
+.widget[data-id='count'],
+.widget[data-id='nodes'] {
+  --wg-aura: rgba(10, 132, 255, 0.2);
+}
+.widget[data-id='enabled'] {
+  --wg-aura: rgba(52, 199, 89, 0.2);
+}
+.widget[data-id='releases'] {
+  --wg-aura: rgba(120, 108, 255, 0.18);
+}
+.widget[data-id='unpushed'],
+.widget[data-id='attention'] {
+  --wg-aura: rgba(255, 159, 10, 0.18);
+}
+.widget[data-id='clock'] {
+  --wg-aura: rgba(255, 255, 255, 0.14);
+}
+.widgets:not(.editing) .widget:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.42),
+    0 24px 50px -16px rgba(4, 8, 20, 0.4),
+    0 3px 8px rgba(4, 8, 20, 0.12),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
 }
 .widget.dragging {
   opacity: 0.42;
@@ -630,11 +759,25 @@ code,
 .widgets.editing .widget {
   box-shadow:
     0 0 0 1.5px rgba(10, 132, 255, 0.62),
-    0 12px 30px -8px rgba(0, 0, 0, 0.3);
+    0 18px 40px -14px rgba(4, 8, 20, 0.38);
   cursor: grab;
 }
 .widgets.editing .widget:active {
   cursor: grabbing;
+}
+[data-theme='dark'] .widget {
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 18px 40px -14px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
+}
+[data-theme='dark'] .widgets:not(.editing) .widget:hover {
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.18),
+    0 26px 54px -16px rgba(0, 0, 0, 0.68),
+    0 3px 8px rgba(0, 0, 0, 0.34),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.18);
 }
 .wg-tools {
   position: absolute;
@@ -673,24 +816,26 @@ code,
 
 .wg-k {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.55px;
   color: var(--wg-t2);
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 .wg-num {
-  font-size: 29px;
+  font-family: var(--font-display);
+  font-size: 34px;
   font-weight: 600;
-  letter-spacing: -0.9px;
-  line-height: 1.1;
+  letter-spacing: -1.4px;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
 .wg-num small {
+  font-family: var(--font);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
-  margin-left: 3px;
+  margin-left: 4px;
   color: var(--wg-t2);
 }
 .wg-kpi {
@@ -698,6 +843,35 @@ code,
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+/* KPI 右侧挂一个环：占比用「环 + 数字」表达，比再叠一行进度条更安静，
+   也避免在卡片里引入第二条水平线 */
+.wg-kpi.row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.wg-ring {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  transform: rotate(-90deg);
+}
+.wg-ring circle {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.wg-ring .track {
+  stroke: rgba(120, 120, 128, 0.2);
+}
+.wg-ring .val {
+  stroke: #34c759;
+  transition: stroke-dashoffset 0.5s var(--ease);
+}
+.widget[data-id='count'] .wg-ring .val {
+  stroke: #0a84ff;
 }
 
 .wg-clock {
@@ -707,16 +881,18 @@ code,
   justify-content: center;
 }
 .wg-time {
-  font-size: 48px;
+  font-family: var(--font-display);
+  font-size: 46px;
   font-weight: 300;
-  line-height: 0.96;
-  letter-spacing: -2.2px;
+  line-height: 0.94;
+  letter-spacing: -2.6px;
   font-variant-numeric: tabular-nums;
 }
 .wg-date {
   font-size: 12.5px;
+  letter-spacing: 0.2px;
   color: var(--wg-t2);
-  margin-top: 5px;
+  margin-top: 6px;
 }
 
 .wg-user {
@@ -804,13 +980,13 @@ code,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-size: 10.5px;
   color: var(--wg-t1);
   cursor: default;
-  border-radius: 9px;
-  padding: 2px 0;
-  transition: background 0.14s;
+  border-radius: 10px;
+  padding: 3px 0;
+  transition: background 0.14s var(--ease-soft);
   background: none;
   border: none;
   font-family: inherit;
@@ -821,7 +997,13 @@ code,
 .wg-app .tile {
   width: 34px;
   height: 34px;
-  border-radius: 26%;
+  border-radius: 27%;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease-soft);
+}
+.wg-app:hover .tile {
+  transform: translateY(-1px) scale(1.07);
 }
 .wg-app .tile svg {
   width: 58%;
@@ -833,13 +1015,65 @@ code,
   text-overflow: ellipsis;
   max-width: 100%;
 }
+/* 组件宽到 2 格（默认尺寸）时，把 4 个应用排成 2×2 的大格子：
+   2×2 的组件里塞一行 3 列小图标会留出一大片空白，格子撑满反而更像一块「面板」。
+   1 格宽（用户切换尺寸后）保持原来的紧凑 3 列，不挤爆也不裁切 */
+@container (min-width: 360px) {
+  .wg-apps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 6px 8px;
+    margin-top: 2px;
+  }
+  .wg-app {
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(128, 128, 128, 0.055);
+    transition:
+      background 0.14s var(--ease-soft),
+      transform 0.18s var(--ease);
+  }
+  .wg-app:hover {
+    background: rgba(128, 128, 128, 0.13);
+  }
+  .wg-app .tile {
+    width: 44px;
+    height: 44px;
+    border-radius: 28%;
+  }
+  .wg-app .tile svg {
+    width: 54%;
+    height: 54%;
+  }
+}
+
+.wg-sum {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 0.5px solid var(--wg-line);
+  font-size: 10.5px;
+  color: var(--wg-t2);
+}
+.wg-sum b {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wg-t1);
+  font-variant-numeric: tabular-nums;
+}
+.wg-sum-all {
+  margin-left: auto;
+}
 
 .wg-list {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   min-height: 0;
 }
 .wg-row {
@@ -854,6 +1088,7 @@ code,
   min-width: 0;
 }
 .wg-row .nm {
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -907,7 +1142,7 @@ code,
 }
 .wg-btn {
   font-size: 10.5px;
-  padding: 2px 9px;
+  padding: 2px 10px;
   border-radius: 20px;
   background: var(--accent);
   color: #fff;
@@ -915,14 +1150,32 @@ code,
   border: none;
   font-family: inherit;
   cursor: default;
+  box-shadow: 0 2px 6px -1px rgba(10, 132, 255, 0.55);
+  transition:
+    filter 0.14s var(--ease-soft),
+    transform 0.14s var(--ease);
+}
+.wg-btn:hover {
+  filter: brightness(1.08);
+}
+.wg-btn:active {
+  transform: scale(0.96);
 }
 .wg-empty {
   grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   text-align: center;
-  padding: 60px 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  padding: 34px 20px;
+  border-radius: 18px;
+  border: 0.5px dashed rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 /* 添加组件面板 */
@@ -999,30 +1252,33 @@ body.editing .wg-add {
    ============================================================ */
 .dock {
   position: fixed;
-  bottom: 8px;
+  bottom: 9px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
   gap: 7px;
-  padding: 7px 9px;
-  background: rgba(255, 255, 255, 0.62);
-  border-radius: 22px;
+  padding: 8px 10px;
+  /* 顶部亮、底部沉：一条真正有「搁板」感的玻璃，而不是一块均匀的半透明矩形 */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.44));
+  border-radius: 24px;
   z-index: 9500;
   transition: background 0.28s;
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.3),
-    0 16px 40px rgba(0, 0, 0, 0.32),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.55),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+    0 0 0 0.5px rgba(255, 255, 255, 0.32),
+    0 30px 60px -18px rgba(4, 8, 20, 0.5),
+    0 4px 12px rgba(4, 8, 20, 0.18),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -8px 16px -10px rgba(0, 0, 0, 0.22);
 }
 [data-theme='dark'] .dock {
   /* 没有背板模糊之后，白色 0.1 在深色壁纸上几乎看不见托盘；
      换成深色半透明，才读得出「一条玻璃条」而不是「几个图标浮在壁纸上」 */
-  background: rgba(28, 28, 32, 0.58);
+  background: linear-gradient(180deg, rgba(46, 46, 54, 0.66), rgba(24, 24, 30, 0.62));
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.18),
-    0 16px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 0.5px rgba(255, 255, 255, 0.17),
+    0 30px 60px -18px rgba(0, 0, 0, 0.72),
+    0 4px 12px rgba(0, 0, 0, 0.34),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.22);
 }
 .dock-group {
@@ -1091,32 +1347,43 @@ body.editing .wg-add {
   position: absolute;
   bottom: 100%;
   left: 50%;
-  transform: translateX(-50%);
-  margin-bottom: 15px;
+  transform: translate(-50%, 4px);
+  margin-bottom: 17px;
   padding: 4px 10px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
   color: #1d1d1f;
   font-size: 11.5px;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.12s;
+  transition:
+    opacity 0.14s var(--ease-soft),
+    transform 0.18s var(--ease);
   box-shadow:
     0 0 0 0.5px rgba(0, 0, 0, 0.12),
-    0 6px 18px rgba(0, 0, 0, 0.22);
+    0 10px 24px -8px rgba(4, 8, 20, 0.36);
 }
 [data-theme='dark'] .dock-item .tip {
-  background: rgba(52, 52, 56, 0.86);
+  background: rgba(54, 54, 60, 0.94);
   color: #f5f5f7;
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 10px 24px -8px rgba(0, 0, 0, 0.6);
 }
 .dock-item:hover .tip {
   opacity: 1;
+  transform: translate(-50%, 0);
 }
 .dock-sep {
   width: 1px;
-  height: 44px;
-  background: rgba(255, 255, 255, 0.26);
+  height: 42px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.32),
+    rgba(255, 255, 255, 0.06)
+  );
   margin: 0 3px;
   align-self: center;
 }
@@ -1128,40 +1395,56 @@ body.editing .wg-add {
   position: fixed;
   inset: 0;
   z-index: 9200;
-  background: rgba(22, 16, 36, 0.66);
+  /* 上层压一层更深的紫黑 + 顶部一圈极光余光：全屏遮罩但不能用模糊，
+     否则每次开合都要对整屏做一次背板采样 */
+  background:
+    radial-gradient(90% 62% at 50% -6%, rgba(122, 96, 255, 0.22), transparent 62%),
+    radial-gradient(70% 50% at 78% 100%, rgba(255, 138, 92, 0.14), transparent 60%),
+    rgba(18, 13, 30, 0.66);
   display: flex;
   flex-direction: column;
   align-items: center;
   padding-top: 62px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.22s;
+  transition: opacity 0.22s var(--ease-soft);
 }
 [data-theme='dark'] .launchpad {
-  background: rgba(8, 8, 12, 0.76);
+  background:
+    radial-gradient(90% 62% at 50% -6%, rgba(122, 96, 255, 0.16), transparent 62%),
+    rgba(6, 6, 11, 0.8);
 }
 .launchpad.show {
   opacity: 1;
   pointer-events: auto;
 }
 .lp-search {
-  width: 272px;
+  width: 300px;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 13.5px;
   text-align: center;
-  padding: 7px 14px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.22);
-  border: 0.5px solid rgba(255, 255, 255, 0.28);
+  padding: 8px 16px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 0.5px solid rgba(255, 255, 255, 0.24);
   color: #fff;
   outline: none;
-  margin-bottom: 42px;
+  margin-bottom: 44px;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.18),
+    0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  transition:
+    background 0.16s var(--ease-soft),
+    box-shadow 0.16s var(--ease-soft);
 }
 .lp-search::placeholder {
-  color: rgba(255, 255, 255, 0.58);
+  color: rgba(255, 255, 255, 0.55);
 }
 .lp-search:focus {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.14),
+    0 0 0 3px rgba(255, 255, 255, 0.16);
 }
 .lp-grid {
   display: grid;
@@ -1175,15 +1458,34 @@ body.editing .wg-add {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: 14px;
+  gap: 11px;
+  padding: 9px;
+  border-radius: 16px;
   border: none;
   background: none;
   font-family: inherit;
+  transition:
+    background 0.16s var(--ease-soft),
+    transform 0.22s var(--ease);
 }
 .lp-app:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-3px);
+}
+/* 打开时错峰上浮：只跑一次，关闭后重新打开会重播（.show 被摘掉时动画随之重置） */
+.launchpad.show .lp-app {
+  animation: lp-in 0.36s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes lp-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .lp-app .tile {
   width: 68px;
@@ -1191,7 +1493,8 @@ body.editing .wg-add {
   border-radius: 24%;
 }
 .lp-app span {
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 500;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
@@ -1304,9 +1607,14 @@ body.editing .wg-add {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 14px 8px;
-  background: var(--side-bg);
-  border-bottom: 0.5px solid var(--line);
+  padding: 8px 14px 9px;
+  /* 实例条是一层「工具栏」：比内容区亮一点、比标题栏暗一点，
+     三段之间有明确的明度台阶，窗口才有纵深 */
+  background: linear-gradient(180deg, rgba(247, 247, 250, 0.78), rgba(245, 245, 248, 0.52));
+  border-bottom: 0.5px solid var(--line-soft);
+}
+[data-theme='dark'] .gw-top {
+  background: linear-gradient(180deg, rgba(46, 46, 53, 0.5), rgba(38, 38, 44, 0.32));
 }
 .gw-top-l {
   display: flex;
@@ -1342,9 +1650,9 @@ body.editing .wg-add {
   align-items: center;
   gap: 6px;
   flex: 0 0 auto;
-  height: 26px;
+  height: 27px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   border: 0.5px solid var(--line);
   background: var(--surface-strong);
   color: var(--t1);
@@ -1352,19 +1660,26 @@ body.editing .wg-add {
   font-size: 12px;
   cursor: default;
   white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(16, 18, 32, 0.045);
   transition:
-    background 0.14s ease,
-    border-color 0.14s ease,
-    color 0.14s ease;
+    background 0.14s var(--ease-soft),
+    border-color 0.14s var(--ease-soft),
+    color 0.14s var(--ease-soft),
+    transform 0.14s var(--ease);
 }
 .gw-tab:hover {
   border-color: var(--brand-line);
 }
+.gw-tab:active {
+  transform: scale(0.985);
+}
 .gw-tab.on {
-  background: var(--accent);
+  background: linear-gradient(180deg, #2f97ff, #0a84ff);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 1px 3px rgba(10, 132, 255, 0.35);
+  box-shadow:
+    0 3px 10px -4px rgba(10, 132, 255, 0.8),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.3);
 }
 .gw-tab-nm {
   max-width: 160px;
@@ -1428,15 +1743,17 @@ body.editing .wg-add {
   margin-bottom: 12px;
 }
 .pane-title {
-  font-size: 15px;
+  font-family: var(--font-display);
+  font-size: 15.5px;
   font-weight: 600;
   color: var(--t1);
-  letter-spacing: -0.2px;
+  letter-spacing: -0.25px;
 }
 .pane-desc {
   font-size: 11.5px;
   color: var(--t3);
   margin-top: 2px;
+  letter-spacing: 0.05px;
 }
 .pane-actions {
   margin-left: auto;
@@ -1450,22 +1767,24 @@ body.editing .wg-add {
 .seg {
   display: inline-flex;
   padding: 2px;
-  border-radius: 8px;
-  background: rgba(120, 120, 128, 0.12);
+  border-radius: 9px;
+  background: rgba(120, 120, 128, 0.11);
   gap: 2px;
   margin-bottom: 13px;
   max-width: 100%;
   overflow-x: auto;
+  box-shadow: inset 0 0.5px 1.5px rgba(16, 18, 32, 0.06);
 }
 [data-theme='dark'] .seg {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 .seg-item {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 3px 11px;
-  border-radius: 6px;
+  border-radius: 7px;
   font-size: 12px;
   color: var(--t2);
   border: none;
@@ -1473,6 +1792,9 @@ body.editing .wg-add {
   font-family: inherit;
   white-space: nowrap;
   cursor: default;
+  transition:
+    color 0.14s var(--ease-soft),
+    background 0.14s var(--ease-soft);
 }
 .seg-item:hover {
   color: var(--t1);
@@ -1482,8 +1804,8 @@ body.editing .wg-add {
   color: var(--t1);
   font-weight: 500;
   box-shadow:
-    0 0.5px 2px rgba(0, 0, 0, 0.14),
-    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+    0 1px 2px rgba(16, 18, 32, 0.12),
+    0 0 0 0.5px rgba(16, 18, 32, 0.05);
 }
 [data-theme='dark'] .seg-item.on {
   background: rgba(255, 255, 255, 0.16);
@@ -1501,25 +1823,47 @@ body.editing .wg-add {
 /* ============================================================
    业务组件基元（窗口内容用）
    ============================================================ */
-.panel {
-  background: var(--surface-sunken);
-  border: 0.5px solid var(--line);
-  border-radius: 10px;
+/* 一组指标 = 一条统计带，而不是五张各自带边框的小卡片。
+   卡片叠卡片会让窗口看起来像仪表盘拼贴；一条带子只用竖线分栏，
+   数字的横向节奏一眼能扫完，宽度不够时自动折行且每格等分 */
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
   overflow: hidden;
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
 }
-/* 弹窗面板必须是**不透明**的。
-   `.panel` 的底色 `--surface-sunken` 是 9% 灰（半透明），当卡片用刚好，做弹窗就会把
-   背后的图透上来——表单和图上那些连线、卡片糊成一片，越看越脏。
-   这里换成等价的实色（9% #787880 压在白底上 = #f0f0f1），肉眼一模一样但不透，
-   再把投影加重一档，分离感由「遮罩压暗 + 面板实色 + 投影」一起给 */
+.stat {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 12px 16px 13px;
+}
+.stat + .stat {
+  border-left: 0.5px solid var(--line-soft);
+}
+
+.panel {
+  /* 内容区用「分组卡片」而不是灰底块：白面 + hairline + 极浅投影，
+     和 macOS 系统设置里的分组列表同一套材质，窗口内外的层次才连得上 */
+  background: var(--surface-strong);
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+/* 弹窗压在遮罩上，必须是一块**实色**：任何半透明底都会把背后的壁纸和窗口透上来，
+   表单与图上的连线糊成一片。比窗口再亮半档 + 更重的投影，
+   分离感由「遮罩压暗 + 面板实色 + 投影」一起给 */
 .panel-dialog {
-  background: #f0f0f1;
+  background: #ffffff;
   border-color: var(--line-strong);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
 }
 [data-theme='dark'] .panel-dialog {
-  background: #353539;
+  background: #2b2b31;
 }
 
 .btn {
@@ -1530,7 +1874,7 @@ body.editing .wg-add {
   height: 28px;
   padding: 0 11px;
   border-radius: 8px;
-  border: 0.5px solid rgba(0, 0, 0, 0.14);
+  border: 0.5px solid rgba(0, 0, 0, 0.13);
   background: #fff;
   color: var(--t1);
   font-family: var(--font);
@@ -1538,49 +1882,55 @@ body.editing .wg-add {
   font-weight: 400;
   white-space: nowrap;
   cursor: default;
-  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 1px 2px rgba(16, 18, 32, 0.06),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
   transition:
-    background-color 0.14s ease,
-    border-color 0.14s ease,
+    background-color 0.14s var(--ease-soft),
+    border-color 0.14s var(--ease-soft),
+    transform 0.12s var(--ease),
     opacity 0.14s ease;
 }
 .btn:hover:not(:disabled) {
-  background: #f5f5f7;
+  background: #f7f7f9;
 }
 .btn:active:not(:disabled) {
-  background: #ececf0;
+  background: #eeeef2;
+  transform: scale(0.985);
 }
 .btn:disabled {
   opacity: 0.42;
 }
 [data-theme='dark'] .btn {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--t1);
-  box-shadow: none;
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.07);
 }
 [data-theme='dark'] .btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, #2f97ff, #0a84ff);
+  border-color: rgba(0, 90, 190, 0.55);
   color: #fff;
-  box-shadow: 0 4px 12px -6px var(--accent);
+  box-shadow:
+    0 3px 10px -4px rgba(10, 132, 255, 0.85),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.34);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent);
-  filter: brightness(1.07);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, #3ba0ff, #0a84ff);
+  filter: brightness(1.04);
+  border-color: rgba(0, 90, 190, 0.55);
 }
 [data-theme='dark'] .btn-primary {
-  background: #0a84ff;
-  border-color: #0a84ff;
+  background: linear-gradient(180deg, #2f97ff, #0a7bef);
+  border-color: rgba(0, 90, 190, 0.5);
   color: #fff;
 }
 [data-theme='dark'] .btn-primary:hover:not(:disabled) {
-  background: #0a84ff;
+  background: linear-gradient(180deg, #3ba0ff, #0a7bef);
 }
 
 .btn-ghost {
@@ -1618,23 +1968,23 @@ body.editing .wg-add {
 .select {
   width: 100%;
   border-radius: 8px;
-  border: 0.5px solid rgba(0, 0, 0, 0.15);
+  border: 0.5px solid rgba(0, 0, 0, 0.14);
   background: #fff;
   color: var(--t1);
-  padding: 5px 9px;
+  padding: 6px 10px;
   font-family: var(--font);
   font-size: 12.5px;
-  box-shadow: inset 0 0.5px 1px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 1px 1.5px rgba(16, 18, 32, 0.05);
   transition:
-    border-color 0.14s ease,
-    box-shadow 0.14s ease;
+    border-color 0.14s var(--ease-soft),
+    box-shadow 0.14s var(--ease-soft);
 }
 .input:focus,
 .textarea:focus,
 .select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: 0 0 0 3.5px var(--accent-soft);
 }
 .input::placeholder,
 .textarea::placeholder {
@@ -1705,11 +2055,12 @@ body.editing .wg-add {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 5px;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 6px;
   font-size: 10.5px;
   font-weight: 500;
+  letter-spacing: 0.1px;
   border: 0.5px solid transparent;
   white-space: nowrap;
 }
@@ -1757,6 +2108,24 @@ body.editing .wg-add {
 .mono {
   font-family: var(--mono);
   font-variant-ligatures: none;
+}
+
+/* 数字统一走 Display 字重与等宽数字：表格里的时间、计数不会因为字符宽度跳 */
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .widget,
+  .launchpad.show .lp-app {
+    animation: none;
+  }
+  .widgets:not(.editing) .widget:hover,
+  .lp-app:hover {
+    transform: none;
+  }
 }
 
 .chip {
@@ -1812,9 +2181,10 @@ body.editing .wg-add {
 /* 表格 */
 .table-wrap {
   overflow: auto;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 0.5px solid var(--line);
-  background: var(--body-bg);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
 }
 table.tbl {
   width: 100%;
@@ -1828,34 +2198,35 @@ table.tbl th {
   top: 0;
   z-index: 1;
   text-align: left;
-  font-weight: 500;
-  font-size: 11px;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.35px;
   color: var(--t3);
-  background: var(--body-bg);
-  padding: 6px 12px;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.07);
+  background: var(--surface-strong);
+  padding: 7px 12px;
+  border-bottom: 0.5px solid var(--line);
   white-space: nowrap;
 }
 table.tbl td {
-  padding: 7px 12px;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.045);
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--line-soft);
   vertical-align: middle;
 }
 table.tbl tbody tr:last-child td {
   border-bottom: none;
 }
 table.tbl tbody tr:hover td {
-  background: rgba(10, 132, 255, 0.05);
+  background: var(--hover);
 }
 [data-theme='dark'] table.tbl th {
-  background: var(--body-bg);
-  border-bottom-color: rgba(255, 255, 255, 0.09);
+  background: var(--surface-strong);
+  border-bottom-color: var(--line);
 }
 [data-theme='dark'] table.tbl td {
-  border-bottom-color: rgba(255, 255, 255, 0.055);
+  border-bottom-color: var(--line-soft);
 }
 [data-theme='dark'] table.tbl tbody tr:hover td {
-  background: rgba(10, 132, 255, 0.13);
+  background: rgba(10, 132, 255, 0.12);
 }
 
 .code {
@@ -2735,24 +3106,28 @@ table.tbl tbody tr:hover td {
 .gnode {
   position: relative;
   min-width: 0;
-  padding: 7px 10px 8px;
-  border-radius: 9px;
+  padding: 8px 11px 9px;
+  border-radius: 10px;
   border: 0.5px solid var(--line);
-  background: var(--surface-sunken);
+  background: var(--surface-strong);
   cursor: pointer;
+  box-shadow: 0 1px 1.5px rgba(16, 18, 32, 0.045);
   transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    box-shadow 0.15s ease;
+    border-color 0.15s var(--ease-soft),
+    background 0.15s var(--ease-soft),
+    box-shadow 0.15s var(--ease-soft);
 }
 .gnode:hover {
   border-color: var(--brand-line);
   background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
 }
 .gnode.on {
   border-color: var(--accent);
   background: var(--surface-strong);
-  box-shadow: 0 0 0 2px var(--brand-soft);
+  box-shadow:
+    0 0 0 2px var(--brand-soft),
+    var(--shadow-sm);
 }
 .gnode.off {
   opacity: 0.55;
@@ -2775,7 +3150,8 @@ table.tbl tbody tr:hover td {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.05px;
   color: var(--t1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2948,8 +3324,8 @@ table.tbl tbody tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 12px 10px;
-  border-radius: 10px;
+  padding: 13px 13px 11px;
+  border-radius: 12px;
   border: 0.5px solid var(--line);
   background: var(--surface-strong);
   box-shadow: var(--shadow-sm);

@@ -126,10 +126,10 @@ export function Section({
 }) {
   return (
     <section className="panel overflow-hidden">
-      <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-3.5">
-        <div>
-          <h2 className="text-[13.5px] font-semibold text-ink">{title}</h2>
-          {description && <p className="mt-0.5 text-[12px] text-ink-mute">{description}</p>}
+      <header className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold tracking-[-0.1px] text-ink">{title}</h2>
+          {description && <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-mute">{description}</p>}
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </header>
@@ -140,10 +140,10 @@ export function Section({
 
 export function Stat({ label, value, hint }: { label: ReactNode; value: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-surface-sunken px-3.5 py-3">
-      <p className="text-[11.5px] text-ink-mute">{label}</p>
-      <p className="mt-0.5 text-[18px] font-semibold leading-tight text-ink">{value}</p>
-      {hint && <p className="mt-1 text-[11px] text-ink-mute">{hint}</p>}
+    <div className="stat">
+      <p className="text-[10.5px] font-semibold tracking-[0.35px] text-ink-mute">{label}</p>
+      <p className="num mt-1 text-[22px] font-semibold leading-none text-ink">{value}</p>
+      {hint && <p className="mt-1.5 text-[11px] text-ink-mute">{hint}</p>}
     </div>
   )
 }
