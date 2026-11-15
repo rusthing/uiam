@@ -112,6 +112,7 @@ function Card({
   nodeKey,
   selected,
   onClick,
+  onActivate,
   className,
   actions,
   children,
@@ -119,6 +120,14 @@ function Card({
   nodeKey: string
   selected: boolean
   onClick?: () => void
+  /**
+   * 双击卡片 = 打开编辑表单。
+   *
+   * 卡片上已经有「编辑」按钮，但它只有 11px，缩到 60% 时目标不到 7px——那是
+   * 「先找到按钮再瞄准」的两步动作。双击是**整张卡片都是热区**的一步动作，
+   * 也是桌面里「打开这个东西」的通用手势。
+   */
+  onActivate?: () => void
   className?: string
   /** 卡片右上角悬浮操作栏：编辑 / 加目标 / 删除。**操作在卡片上，不在属性栏里** */
   actions?: React.ReactNode
@@ -129,6 +138,19 @@ function Card({
       data-node={nodeKey}
       className={cx('gnode', className, selected && 'on')}
       onClick={onClick}
+      onDoubleClick={(e) => {
+        if (!onActivate) return
+        // 卡片里还嵌着开关、操作按钮、拖动把手：双击它们不应该顺手弹出表单
+        // （双击开关会先切两次状态再开表单，最容易被误当成「开关坏了」）
+        if ((e.target as HTMLElement).closest('button, a, input, label, [role="switch"]')) return
+        e.stopPropagation()
+        onActivate()
+      }}
+      onMouseDown={(e) => {
+        // 双击的第二下浏览器会顺手选中一个词，表单弹出来时背后留着半截高亮；
+        // 只拦 detail > 1，单击拖选文字（复制地址、匹配器）仍然正常
+        if (onActivate && e.detail > 1) e.preventDefault()
+      }}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={
@@ -298,6 +320,7 @@ function ListenerNode({
       nodeKey={listenerKey(listener.id)}
       selected={selected}
       onClick={onSelect}
+      onActivate={onEdit}
       className={cx('gnode-listener', !listener.enabled && 'off')}
       actions={
         <>
@@ -367,6 +390,7 @@ function RouteNode({
       nodeKey={routeKey(route.id)}
       selected={selected}
       onClick={onSelect}
+      onActivate={onEdit}
       className={cx('gnode-route', !route.enabled && 'off', shadowed && 'warn', dragging && 'dragging')}
       actions={
         <>
@@ -454,6 +478,7 @@ function TargetNode({
       nodeKey={slot.key}
       selected={selected}
       onClick={onSelect}
+      onActivate={onEdit}
       className={cx('gnode-target', slot.kind, slot.balancer && !slot.balancer.enabled && 'off')}
       actions={
         <>
@@ -523,6 +548,7 @@ function BackendNode({
       nodeKey={backendKey(balancerId, index)}
       selected={selected}
       onClick={onSelect}
+      onActivate={onEdit}
       className="gnode-backend"
       actions={
         <Act title="编辑所属负载均衡器" tip="编辑" onClick={onEdit}>

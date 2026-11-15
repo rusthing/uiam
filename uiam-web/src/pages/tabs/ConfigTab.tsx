@@ -7,8 +7,9 @@
  *
  * ## 动作都在卡片上
  *
- * 编辑 / 删除 / 连目标由卡片右上角的操作栏触发，`onEdit` / `onDelete` / `onAddTarget`
- * 一路传到 `GatewayGraph`。属性栏是只读的——它是「看清楚这是什么」的地方。
+ * 编辑 / 删除 / 连目标由卡片右上角的操作栏触发，**双击整张卡片等同「编辑」**，
+ * `onEdit` / `onDelete` / `onAddTarget` 一路传到 `GatewayGraph`。属性栏是只读的
+ * ——它是「看清楚这是什么」的地方。
  *
  * ## 图区为什么要自己算高度
  *
@@ -319,6 +320,14 @@ export function ConfigTab({
           <b>{balancers.length}</b> 个负载均衡器
         </span>
         {stats.disabled > 0 && <span className="mute">{stats.disabled} 个已停用</span>}
+        {/* 双击是隐藏手势，得有地方说出来：卡片上的「编辑」按钮只有 11px，
+            缩到 60% 时更难瞄，双击整张卡片是更省事的那条路 */}
+        {view === 'graph' && (
+          <>
+            <span className="sep">·</span>
+            <span className="mute">双击卡片可直接编辑</span>
+          </>
+        )}
       </div>
 
       <div className="cfg-bar-r">
