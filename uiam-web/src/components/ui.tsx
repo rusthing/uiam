@@ -186,12 +186,14 @@ export function Modal({
 
   return createPortal(
     <div className="fixed inset-0 z-[9800] flex items-start justify-center overflow-y-auto p-6 sm:items-center">
+      {/* 遮罩不加 backdrop-filter：它罩着整个窗口，任何一帧重绘都要重算一次模糊。
+          改成「压暗得更实」——弹窗的分离感靠这个 + 面板本身不透明来拿 */}
       <div
-        className="fixed inset-0 bg-[rgba(10,14,22,0.42)] backdrop-blur-[2px]"
+        className="fixed inset-0 bg-[rgba(10,14,22,0.52)]"
         onClick={onClose}
       />
       <div
-        className="panel pop-in relative z-10 my-auto w-full"
+        className="panel panel-dialog pop-in relative z-10 my-auto w-full"
         style={{ maxWidth: width }}
         role="dialog"
         aria-modal="true"

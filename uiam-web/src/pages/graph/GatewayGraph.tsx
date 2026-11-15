@@ -31,6 +31,7 @@
  * 坐标要多除一次缩放系数（见 `measure`）。
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   describeAddrs,
   describeBalancer,
@@ -148,11 +149,51 @@ function Card({
 }
 
 /**
+ * 悬停说明（hint）。
+ *
+ * 为什么不把文字展开在按钮里：一展开按钮就变宽，整条工具条跟着往左挪，鼠标下的
+ * 目标会跑 —— 想点「删除」结果点到「连目标」，这是最伤的一类交互 bug。
+ * 所以 hint 走**浮层**，不参与布局。
+ *
+ * 为什么用 portal + `position: fixed` 而不是卡片里的绝对定位气泡：卡片上方是
+ * sticky 的泳道题头（z-index 3），绝对定位的气泡会被它压住（实测
+ * `elementFromPoint` 命中的是题头）；挂在 body 上就没有这个问题，也不会被
+ * `.gg-scroll` 的 overflow 裁掉。
+ */
+function Hint({ at, text }: { at: { x: number; y: number; above: boolean }; text: string }) {
+  return createPortal(
+    <span
+      className="gnode-hint"
+      style={{
+        left: at.x,
+        top: at.y,
+        transform: at.above ? 'translate(-50%, calc(-100% - 6px))' : 'translate(-50%, 6px)',
+      }}
+      role="tooltip"
+    >
+      {text}
+    </span>,
+    document.body,
+  )
+}
+
+/** 悬停 / 聚焦时把 hint 锚点算出来（视口坐标，不受 zoom 影响） */
+function useHint() {
+  const [at, setAt] = useState<{ x: number; y: number; above: boolean } | null>(null)
+  const show = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    // 上方不够就翻到下面，别让 hint 跑出窗口
+    const above = r.top > 42
+    setAt({ x: r.left + r.width / 2, y: above ? r.top : r.bottom, above })
+  }
+  return { at, show, hide: () => setAt(null) }
+}
+
+/**
  * 卡片右上角的操作按钮。
  *
- * 说明气泡是自己画的，没用原生 `title`：原生的要悬停一秒才出来、字体/配色跟不了
- * 主题、在缩放过的 stage 里位置也不受控。`tip` 是给人看的短标签（「连目标」），
- * `title` 留给读屏（「新建目标 / 连到已有目标」）。
+ * `tip` 是给人看的短标签（「连目标」），`title` 留给读屏（「新建目标 / 连到已有目标」）。
+ * 不再用原生 `title`：它要悬停一秒才出来、字体和配色跟不了主题。
  */
 function Act({
   title,
@@ -169,22 +210,29 @@ function Act({
   disabled?: boolean
   children: React.ReactNode
 }) {
+  const hint = useHint()
   return (
-    <button
-      type="button"
-      className={cx('gnode-act', danger && 'danger')}
-      aria-label={title}
-      disabled={disabled}
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick(e)
-      }}
-    >
-      {children}
-      <span className="gnode-act-tip" aria-hidden="true">
-        {tip ?? title}
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        className={cx('gnode-act', danger && 'danger')}
+        aria-label={title}
+        disabled={disabled}
+        onPointerEnter={(e) => hint.show(e.currentTarget)}
+        onPointerLeave={hint.hide}
+        onFocus={(e) => hint.show(e.currentTarget)}
+        onBlur={hint.hide}
+        onClick={(e) => {
+          e.stopPropagation()
+          // 点开表单 / 菜单后 hint 要立刻收：鼠标没动，pointerleave 不会自己触发
+          hint.hide()
+          onClick(e)
+        }}
+      >
+        {children}
+      </button>
+      {hint.at && <Hint at={hint.at} text={tip ?? title} />}
+    </>
   )
 }
 
@@ -202,20 +250,25 @@ function GripAct({
   title: string
   onDown: (e: React.PointerEvent<HTMLButtonElement>) => void
 }) {
+  const hint = useHint()
   return (
-    <button
-      type="button"
-      className="gnode-act grip"
-      aria-label={title}
-      title={title}
-      onPointerDown={onDown}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <IconGrip size={11} />
-      <span className="gnode-act-tip" aria-hidden="true">
-        拖动排序
-      </span>
-    </button>
+    <>
+      <button
+        type="button"
+        className="gnode-act grip"
+        aria-label={title}
+        onPointerDown={(e) => {
+          hint.hide()
+          onDown(e)
+        }}
+        onPointerEnter={(e) => hint.show(e.currentTarget)}
+        onPointerLeave={hint.hide}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <IconGrip size={11} />
+      </button>
+      {hint.at && <Hint at={hint.at} text="拖动排序" />}
+    </>
   )
 }
 

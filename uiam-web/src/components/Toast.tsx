@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={item.id}
               className={cx(
-                'pointer-events-auto pop-in flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-lg backdrop-blur-xl',
+                'pointer-events-auto pop-in flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[12.5px] leading-relaxed shadow-lg',
                 item.kind === 'success' &&
                   'border-[color-mix(in_srgb,var(--ok)_35%,transparent)] bg-[color-mix(in_srgb,var(--ok-soft)_92%,var(--surface-strong))] text-ink',
                 item.kind === 'error' &&

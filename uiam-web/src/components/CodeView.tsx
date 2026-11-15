@@ -35,7 +35,7 @@ export function CodeView({
   return (
     <div className={cx('relative overflow-hidden rounded-xl border border-line bg-surface-sunken', className)}>
       <button
-        className="btn btn-ghost btn-sm absolute right-2 top-2 z-10 !h-7 backdrop-blur-sm"
+        className="btn btn-sm absolute right-2 top-2 z-10 !h-7"
         onClick={copy}
         title="复制全文"
       >

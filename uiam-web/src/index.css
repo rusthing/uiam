@@ -1507,6 +1507,20 @@ body.editing .wg-add {
   border-radius: 10px;
   overflow: hidden;
 }
+/* 弹窗面板必须是**不透明**的。
+   `.panel` 的底色 `--surface-sunken` 是 9% 灰（半透明），当卡片用刚好，做弹窗就会把
+   背后的图透上来——表单和图上那些连线、卡片糊成一片，越看越脏。
+   这里换成等价的实色（9% #787880 压在白底上 = #f0f0f1），肉眼一模一样但不透，
+   再把投影加重一档，分离感由「遮罩压暗 + 面板实色 + 投影」一起给 */
+.panel-dialog {
+  background: #f0f0f1;
+  border-color: var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+[data-theme='dark'] .panel-dialog {
+  background: #353539;
+}
 
 .btn {
   display: inline-flex;
@@ -2473,6 +2487,8 @@ table.tbl tbody tr:hover td {
   transform: none;
   pointer-events: auto;
 }
+/* 尺寸**固定**：按钮绝不能因为悬停而变宽——工具条是右对齐的，一长就整条往左挪，
+   鼠标下的目标会跑，想点「删除」点到「连目标」。说明走下面的浮层 hint */
 .gnode-act {
   display: flex;
   align-items: center;
@@ -2487,9 +2503,7 @@ table.tbl tbody tr:hover td {
   cursor: pointer;
   transition:
     color 0.12s ease,
-    background 0.12s ease,
-    width 0.14s ease,
-    padding 0.14s ease;
+    background 0.12s ease;
 }
 .gnode-act:hover {
   background: var(--surface-sunken);
@@ -2499,35 +2513,42 @@ table.tbl tbody tr:hover td {
   background: var(--danger-soft);
   color: var(--danger);
 }
-/* 操作按钮的说明：**在按钮里横向展开**，不做浮层气泡。
-   卡片上方没有空间——操作栏吊在卡片顶边（top:-16px），再往上就是泳道题头
-   （sticky，z-index 3），气泡会被题头压住；往下又会盖住卡片自己的标题行。
-   所以让按钮在悬停时长出文字、工具条整体往左长：整个工具条都在卡片内容之上，
-   不压任何东西，也不需要额外定位 */
-.gnode-act-tip {
-  max-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  opacity: 0;
-  font-size: 10.5px;
+/* 操作按钮的 hint：浮层，挂 body（portal + position:fixed）。
+   为什么不放在卡片里：卡片上方是 sticky 的泳道题头（z-index 3），绝对定位的气泡
+   会被它压住；挂 body 就没有层级和 overflow 裁剪的问题，也不参与布局 */
+/* z-index 卡在「窗口之上、弹窗之下」（modal 9800 / 右键菜单 9700）：
+   hint 永远不该盖住一个弹窗 */
+.gnode-hint {
+  position: fixed;
+  z-index: 9600;
+  padding: 3px 7px;
+  border-radius: 6px;
+  border: 0.5px solid var(--line-strong);
+  background: var(--surface-strong);
+  color: var(--t1);
+  font-family: var(--font);
+  font-size: 11px;
   font-weight: 500;
-  line-height: 1;
-  transition:
-    max-width 0.14s ease,
-    opacity 0.1s ease,
-    margin-left 0.14s ease;
+  line-height: 1.45;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  animation: hint-in 0.12s ease-out both;
 }
-.gnode-act:hover,
-.gnode-act:focus-visible {
-  width: auto;
-  padding: 0 6px;
+@keyframes hint-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
-.gnode-act:hover .gnode-act-tip,
-.gnode-act:focus-visible .gnode-act-tip {
-  max-width: 90px;
-  margin-left: 4px;
-  opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .gnode-hint {
+    animation: none;
+  }
 }
+
 /* ---- 拖动排序 ---- */
 /* 插入线画在 `.gg-wrap` 里（和卡片同一坐标系），所以左/上/宽都是布局 px */
 .gg-dropline {
@@ -2572,21 +2593,14 @@ table.tbl tbody tr:hover td {
 .gnode-act.grip:active {
   cursor: grabbing;
 }
-/* 到头了（第一条的上移 / 最后一条的下移）：压暗但仍然占位，避免工具条宽度跳动 */
+/* 到头了（第一条的上移 / 最后一条的下移）：压暗但仍占位，工具条宽度不变 */
 .gnode-act:disabled {
   opacity: 0.3;
   cursor: default;
 }
 .gnode-act:disabled:hover {
-  width: 19px;
-  padding: 0;
   background: none;
   color: var(--t3);
-}
-.gnode-act:disabled .gnode-act-tip {
-  max-width: 0;
-  margin-left: 0;
-  opacity: 0;
 }
 
 /* ---- 右下角浮层：预览图 + 缩放 ---- */
