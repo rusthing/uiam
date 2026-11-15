@@ -18,6 +18,7 @@ import type { PublishResult, Release, RenderPreview } from '../lib/types'
 import { useGatewayList } from '../state/GatewayList'
 import { useGatewayTree } from '../state/useGatewayTree'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ExportDialog } from '../components/ExportDialog'
 import { GatewayForm } from '../components/GatewayForm'
 import { ImportDialog } from '../components/ImportDialog'
 import { PublishDialog, PreviewDrawer, ResultDialog } from '../components/Publish'
@@ -25,6 +26,7 @@ import { useToast } from '../components/Toast'
 import { Badge, cx, Empty, Spinner } from '../components/ui'
 import {
   IconAlert,
+  IconDownload,
   IconEdit,
   IconEye,
   IconHistory,
@@ -77,6 +79,7 @@ export function GatewayApp() {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   // ---- 发布链路状态 ----
   const [preview, setPreview] = useState<RenderPreview | undefined>(undefined)
@@ -312,6 +315,13 @@ export function GatewayApp() {
                 >
                   <IconImport size={13} /> 导入
                 </button>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setExportOpen(true)}
+                  title="把「发布」会写进 Consul 的 TOML 导出来（就是发布的内容本身）"
+                >
+                  <IconDownload size={13} /> 导出
+                </button>
                 <button className="btn btn-sm" onClick={openPreview}>
                   <IconEye size={13} /> 渲染预览
                 </button>
@@ -449,6 +459,10 @@ export function GatewayApp() {
             tree.reload()
           }}
         />
+      )}
+
+      {gateway && (
+        <ExportDialog open={exportOpen} gateway={gateway} onClose={() => setExportOpen(false)} />
       )}
 
       {gateway && (

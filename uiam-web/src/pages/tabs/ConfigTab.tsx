@@ -23,13 +23,12 @@ import { asBalancerPayload, asListenerPayload, asRoutePayload } from '../../lib/
 import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
 import { BalancerForm } from '../../components/BalancerForm'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { ExportDialog } from '../../components/ExportDialog'
 import { ListenerForm } from '../../components/ListenerForm'
 import { RouteForm } from '../../components/RouteForm'
 import { TargetPicker } from '../../components/TargetPicker'
 import { useToast } from '../../components/Toast'
 import { cx } from '../../components/ui'
-import { IconChevronLeft, IconChevronRight, IconDownload } from '../../components/icons'
+import { IconChevronLeft, IconChevronRight } from '../../components/icons'
 import { GatewayGraph, type Selection } from '../graph/GatewayGraph'
 import { GlobalBand } from '../graph/GlobalBand'
 import { Inspector } from '../graph/Inspector'
@@ -66,7 +65,6 @@ export function ConfigTab({
   const [view, setView] = useState<View>('graph')
   const [selection, setSelection] = useState<Selection | null>(null)
   const [insOpen, setInsOpen] = useState(() => localStorage.getItem(INS_OPEN_KEY) !== '0')
-  const [exportOpen, setExportOpen] = useState(false)
 
   const [listenerForm, setListenerForm] = useState<{ open: boolean; editing: Listener | null }>({
     open: false,
@@ -266,13 +264,6 @@ export function ConfigTab({
       </div>
 
       <div className="cfg-bar-r">
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => setExportOpen(true)}
-          title="把「发布」会写进 Consul 的 TOML 导出来"
-        >
-          <IconDownload size={12} /> 导出
-        </button>
         <div className="seg cfg-view">
           <button
             className={cx('seg-item', view === 'graph' && 'on')}
@@ -418,8 +409,6 @@ export function ConfigTab({
           setRouteForm({ open: true, editing: route })
         }}
       />
-
-      <ExportDialog open={exportOpen} gateway={gateway} onClose={() => setExportOpen(false)} />
 
       <ListenerForm
         open={listenerForm.open}

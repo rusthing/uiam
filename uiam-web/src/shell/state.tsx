@@ -50,6 +50,14 @@ interface ShellApi {
 const ShellContext = createContext<ShellApi | null>(null)
 
 const PIN_KEY = 'uiam-dock-pinned'
+const GEO_KEY = 'uiam-win-geo'
+
+/** 和 `Window.tsx` 里的下限保持一致，否则存下来的值再读回来会被这里放大/缩小一次 */
+const MIN_W = 460
+const MIN_H = 280
+const MIN_Y = 26
+
+type Geo = { x: number; y: number; w: number; h: number }
 
 function loadPinned(): string[] {
   try {
@@ -64,8 +72,57 @@ function loadPinned(): string[] {
   return DEFAULT_PINNED
 }
 
-/** 开窗几何：对齐原型的「居中 + 级联偏移」，并按视口收一下，保证标题栏可见 */
-function placeWindow(id: string, cascade: number) {
+/**
+ * 每个应用上次关掉时的窗口几何。
+ *
+ * 只记「用户亲手调过」的：拖标题栏、拖把手。最大化 / 最小化不参与——它们的
+ * `w/h` 本来就没变（`.window.max` 是 CSS 铺满，不动 state），记下来反而是对的。
+ */
+function loadGeo(): Record<string, Geo> {
+  try {
+    const raw = localStorage.getItem(GEO_KEY)
+    if (!raw) return {}
+    const obj = JSON.parse(raw)
+    if (!obj || typeof obj !== 'object') return {}
+    const out: Record<string, Geo> = {}
+    for (const [id, g] of Object.entries(obj as Record<string, unknown>)) {
+      if (!APP_MAP[id] || !g || typeof g !== 'object') continue
+      const { x, y, w, h } = g as Geo
+      if ([x, y, w, h].some((n) => typeof n !== 'number' || !Number.isFinite(n))) continue
+      out[id] = { x, y, w, h }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * 把记住的几何按**当前**视口收一遍。
+ *
+ * 上次在 27 寸屏上拉到 2200 宽，换到笔记本再打开就会有一半在屏幕外；
+ * 收完至少要保证标题栏（含交通灯）能点到，所以纵向 y 卡在 26、横向留 120。
+ */
+function clampGeo(g: Geo): Geo {
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const w = Math.min(Math.max(g.w, MIN_W), Math.max(MIN_W, vw - 70))
+  const h = Math.min(Math.max(g.h, MIN_H), Math.max(MIN_H, vh - 110))
+  // 宽高已经收进视口了，位置就按「整窗留在屏幕里」收——比拖拽时那套「留 120px
+  // 够得着」更严一点：恢复几何时不该出现「右边缘在屏幕外」的窗口
+  return {
+    w,
+    h,
+    x: Math.min(Math.max(g.x, 120 - w), Math.max(120 - w, vw - w - 10)),
+    y: Math.min(Math.max(g.y, MIN_Y), Math.max(MIN_Y, vh - h - 10)),
+  }
+}
+
+/**
+ * 开窗几何：有记录就用记录（按视口收），没有就对齐原型的「居中 + 级联偏移」。
+ */
+function placeWindow(id: string, cascade: number, saved?: Geo) {
+  if (saved) return clampGeo(saved)
   const app = APP_MAP[id]
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -85,6 +142,27 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [launchpad, setLaunchpad] = useState(false)
   const zRef = useRef(100)
   const cascadeRef = useRef(0)
+  /** 已落盘的几何，开窗时查它；同时当作「防抖写盘」的缓冲区 */
+  const geoRef = useRef<Record<string, Geo>>(loadGeo())
+  const geoTimer = useRef(0)
+  /** `wins` 的镜像：`moveWin` / `resizeWin` 要算钳制后的值再存，不能读 setState 里的 prev */
+  const winsRef = useRef<WinState[]>([])
+  winsRef.current = wins
+
+  /** 拖拽是每帧都来的，攒 400ms 再写一次 localStorage，别每帧同步序列化一遍 */
+  const saveGeo = useCallback((id: string, geo: Geo) => {
+    geoRef.current = { ...geoRef.current, [id]: geo }
+    window.clearTimeout(geoTimer.current)
+    geoTimer.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem(GEO_KEY, JSON.stringify(geoRef.current))
+      } catch {
+        // 存不下就只在本次会话里生效
+      }
+    }, 400)
+  }, [])
+
+  useEffect(() => () => window.clearTimeout(geoTimer.current), [])
 
   const focusWin = useCallback((id: string) => {
     zRef.current += 1
@@ -105,7 +183,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       if (prev.some((w) => w.id === id)) {
         return prev.map((w) => (w.id === id ? { ...w, min: false, z } : w))
       }
-      const geo = placeWindow(id, cascadeRef.current++)
+      const geo = placeWindow(id, cascadeRef.current++, geoRef.current[id])
       return [...prev, { id, ...geo, min: false, max: false, z }]
     })
     setFocusId(id)
@@ -131,21 +209,20 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     setFocusId(id)
   }, [])
 
-  const moveWin = useCallback((id: string, x: number, y: number) => {
-    setWins((prev) =>
-      prev.map((w) => {
-        if (w.id !== id) return w
-        // 不让窗口被拖到完全够不着的地方：横向至少留 120px、纵向标题栏不越过菜单栏
-        const maxX = window.innerWidth - 120
-        const maxY = window.innerHeight - 60
-        return {
-          ...w,
-          x: Math.min(Math.max(x, 120 - w.w), maxX),
-          y: Math.min(Math.max(y, 26), maxY),
-        }
-      }),
-    )
-  }, [])
+  const moveWin = useCallback(
+    (id: string, x: number, y: number) => {
+      const cur = winsRef.current.find((w) => w.id === id)
+      if (!cur) return
+      // 不让窗口被拖到完全够不着的地方：横向至少留 120px、纵向标题栏不越过菜单栏
+      const maxX = window.innerWidth - 120
+      const maxY = window.innerHeight - 60
+      const nx = Math.min(Math.max(x, 120 - cur.w), maxX)
+      const ny = Math.min(Math.max(y, MIN_Y), maxY)
+      saveGeo(id, { x: nx, y: ny, w: cur.w, h: cur.h })
+      setWins((prev) => prev.map((w) => (w.id === id ? { ...w, x: nx, y: ny } : w)))
+    },
+    [saveGeo],
+  )
 
   /**
    * 改窗口大小。
@@ -156,9 +233,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
    */
   const resizeWin = useCallback(
     (id: string, geo: { x: number; y: number; w: number; h: number }) => {
+      saveGeo(id, geo)
       setWins((prev) => prev.map((w) => (w.id === id ? { ...w, ...geo, max: false } : w)))
     },
-    [],
+    [saveGeo],
   )
 
   const togglePin = useCallback((id: string) => {

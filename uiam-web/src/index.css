@@ -19,7 +19,7 @@
 
   /* ---- 原型令牌 ---- */
   --body-bg: #fdfdfe;
-  --win-bg: rgba(252, 252, 253, 0.82);
+  --win-bg: rgba(252, 252, 253, 0.965);
   --win-radius: 13px;
   --bar-h: 42px;
   --t1: #1d1d1f;
@@ -32,7 +32,7 @@
   --hover: rgba(10, 132, 255, 0.055);
   --side-bg: rgba(246, 246, 248, 0.55);
   --radius-sm: 7px;
-  --wg-bg: rgba(252, 252, 254, 0.7);
+  --wg-bg: rgba(252, 252, 254, 0.9);
   --wg-t1: #17171a;
   --wg-t2: #55555c;
   --wg-line: rgba(0, 0, 0, 0.07);
@@ -64,7 +64,7 @@
 
 [data-theme='dark'] {
   --body-bg: #1e1e21;
-  --win-bg: rgba(38, 38, 42, 0.86);
+  --win-bg: rgba(38, 38, 42, 0.965);
   --t1: #f5f5f7;
   --t2: #c7c7cc;
   --t3: #8e8e93;
@@ -73,7 +73,7 @@
   --hover: rgba(10, 132, 255, 0.15);
   --accent-soft: rgba(10, 132, 255, 0.22);
   --side-bg: rgba(52, 52, 56, 0.42);
-  --wg-bg: rgba(30, 30, 36, 0.56);
+  --wg-bg: rgba(30, 30, 36, 0.88);
   --wg-t1: #f2f2f5;
   --wg-t2: #9d9da5;
   --wg-line: rgba(255, 255, 255, 0.1);
@@ -251,9 +251,7 @@ code,
   left: 0;
   right: 0;
   height: 26px;
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(50px) saturate(200%);
-  -webkit-backdrop-filter: blur(50px) saturate(200%);
+  background: rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -326,6 +324,23 @@ code,
 
 /* ============================================================
    窗口
+   ------------------------------------------------------------
+   ⚠️ 全站**不用 backdrop-filter**（这一条比任何优化都重要）。
+
+   实测（headless + 1440x900 + 2000ms 采样）：
+     · 页面静止                                  → 60.6fps
+     · 桌面上一块 120x40 的橙色方块做 transform 动画 → 8.6fps
+     · 同一场景，只把 `backdrop-filter` 全去掉     → 60.6fps
+     · 只动 1 条连线 / 动 7 条连线                 → 9.6 / 8.9fps（差别不大）
+
+   也就是说：**只要页面上有任何一帧重绘，所有 backdrop-filter 元素都要重新取一次
+   背板、重新模糊一次**。桌面上有 8 个组件 + 24 个工具按钮 + 菜单栏 + Dock + 气泡 +
+   右键菜单 + 启动台，四十多处毛玻璃一起重算，跟「重绘面积多大」几乎无关——所以
+   关掉连线动画能到 60fps，一动就掉回个位数。
+
+   背板是几层平滑的径向渐变（见 `.desktop`），本来就没有高频细节，模糊它等于白算。
+   玻璃感改用「高不透明度的半透明底色 + 0.5px 描边 + inset 高光」拿到，肉眼几乎无差，
+   换来的是窗口内部（连线流动、拖拽、改大小）可以随便重绘。
    ============================================================ */
 .windows {
   position: absolute;
@@ -339,8 +354,6 @@ code,
   display: none;
   flex-direction: column;
   background: var(--win-bg);
-  backdrop-filter: blur(54px) saturate(190%);
-  -webkit-backdrop-filter: blur(54px) saturate(190%);
   border-radius: var(--win-radius);
   overflow: hidden;
   min-width: 460px;
@@ -600,8 +613,6 @@ code,
   padding: 13px 15px 14px;
   border-radius: 18px;
   background: var(--wg-bg);
-  backdrop-filter: blur(42px) saturate(180%);
-  -webkit-backdrop-filter: blur(42px) saturate(180%);
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.34),
     0 12px 30px -8px rgba(0, 0, 0, 0.26),
@@ -643,8 +654,7 @@ code,
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(120, 120, 130, 0.24);
-  backdrop-filter: blur(10px);
+  background: rgba(120, 120, 130, 0.3);
   color: var(--wg-t1);
   cursor: pointer;
   transition: background 0.14s;
@@ -926,8 +936,6 @@ code,
   padding: 11px;
   border-radius: 16px;
   background: var(--wg-bg);
-  backdrop-filter: blur(42px) saturate(180%);
-  -webkit-backdrop-filter: blur(42px) saturate(180%);
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.22),
     0 16px 40px rgba(0, 0, 0, 0.3),
@@ -998,9 +1006,7 @@ body.editing .wg-add {
   align-items: flex-end;
   gap: 7px;
   padding: 7px 9px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(46px) saturate(200%);
-  -webkit-backdrop-filter: blur(46px) saturate(200%);
+  background: rgba(255, 255, 255, 0.62);
   border-radius: 22px;
   z-index: 9500;
   transition: background 0.28s;
@@ -1011,7 +1017,9 @@ body.editing .wg-add {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
 }
 [data-theme='dark'] .dock {
-  background: rgba(255, 255, 255, 0.1);
+  /* 没有背板模糊之后，白色 0.1 在深色壁纸上几乎看不见托盘；
+     换成深色半透明，才读得出「一条玻璃条」而不是「几个图标浮在壁纸上」 */
+  background: rgba(28, 28, 32, 0.58);
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.18),
     0 16px 40px rgba(0, 0, 0, 0.5),
@@ -1087,9 +1095,7 @@ body.editing .wg-add {
   margin-bottom: 15px;
   padding: 4px 10px;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.76);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: rgba(255, 255, 255, 0.95);
   color: #1d1d1f;
   font-size: 11.5px;
   white-space: nowrap;
@@ -1122,9 +1128,7 @@ body.editing .wg-add {
   position: fixed;
   inset: 0;
   z-index: 9200;
-  background: rgba(22, 16, 36, 0.34);
-  backdrop-filter: blur(56px) saturate(180%);
-  -webkit-backdrop-filter: blur(56px) saturate(180%);
+  background: rgba(22, 16, 36, 0.66);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1134,7 +1138,7 @@ body.editing .wg-add {
   transition: opacity 0.22s;
 }
 [data-theme='dark'] .launchpad {
-  background: rgba(8, 8, 12, 0.5);
+  background: rgba(8, 8, 12, 0.76);
 }
 .launchpad.show {
   opacity: 1;
@@ -1147,9 +1151,8 @@ body.editing .wg-add {
   text-align: center;
   padding: 7px 14px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.22);
   border: 0.5px solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(20px);
   color: #fff;
   outline: none;
   margin-bottom: 42px;
@@ -1200,9 +1203,7 @@ body.editing .wg-add {
   position: fixed;
   z-index: 9700;
   min-width: 170px;
-  background: rgba(252, 252, 253, 0.82);
-  backdrop-filter: blur(40px) saturate(190%);
-  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  background: rgba(252, 252, 253, 0.97);
   border-radius: 9px;
   padding: 5px;
   box-shadow:
@@ -2367,31 +2368,39 @@ table.tbl tbody tr:hover td {
 .gg-edge {
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.2;
+  stroke-width: 1.3;
+  opacity: 0.72;
 }
 .gg-arrow {
   fill: currentColor;
   stroke: none;
+  opacity: 0.9;
 }
-/* 第二层：流动的短划。方向感靠它，箭头只负责「到哪」。
-   4 + 12 = 16，偏移量也取 -16，一个周期正好接上，看不出接缝 */
+/* 第二层：一个光点在线上跑（不是「蚂蚁行军」）。
+   周期 96px 里只有 10px 亮段，慢速 2.6s，圆头，比线更粗更亮 —— 一眼是「流向」，
+   而不是一排虚线在挪。每条线的起始相位在 JS 里错开（animationDelay 为负），
+   否则所有线会同时亮，看着像机器在闪。
+   ⚠️ 这层是**每帧重绘**的：它曾经把窗口从 60fps 拖到 4fps（窗口那时有 backdrop-filter，
+   见 .window 上的注释）。现在窗口没有背板模糊了，重绘只影响这块 SVG，代价可忽略。 */
 .gg-flow {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2.4;
+  stroke-width: 3.4;
   stroke-linecap: round;
-  stroke-dasharray: 4 12;
-  animation: gg-flow 1s linear infinite;
+  stroke-dasharray: 10 86;
+  animation: gg-flow 2.6s linear infinite;
 }
 @keyframes gg-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
   to {
-    stroke-dashoffset: -16;
+    stroke-dashoffset: -96;
   }
 }
 /* 尊重系统设置：关掉动效时只留静态连线 */
 @media (prefers-reduced-motion: reduce) {
   .gg-flow {
-    animation: none;
     display: none;
   }
 }
@@ -2419,6 +2428,19 @@ table.tbl tbody tr:hover td {
 .gg-arrow.bad,
 .gg-flow.bad {
   color: var(--danger);
+}
+/* 光点用「纯色」，线用淡一档的同色：亮段才跳得出来，又不会像荧光笔 */
+.gg-flow.neutral {
+  color: var(--t3);
+}
+.gg-flow.lb {
+  color: var(--ok);
+}
+.gg-flow.host {
+  color: var(--warn);
+}
+.gg-flow.static {
+  color: var(--accent);
 }
 
 /* ---- 悬浮操作栏：操作在卡片上，不在属性栏里 ----
@@ -2452,8 +2474,9 @@ table.tbl tbody tr:hover td {
   pointer-events: auto;
 }
 .gnode-act {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 19px;
   height: 19px;
   padding: 0;
@@ -2464,7 +2487,9 @@ table.tbl tbody tr:hover td {
   cursor: pointer;
   transition:
     color 0.12s ease,
-    background 0.12s ease;
+    background 0.12s ease,
+    width 0.14s ease,
+    padding 0.14s ease;
 }
 .gnode-act:hover {
   background: var(--surface-sunken);
@@ -2474,7 +2499,35 @@ table.tbl tbody tr:hover td {
   background: var(--danger-soft);
   color: var(--danger);
 }
-
+/* 操作按钮的说明：**在按钮里横向展开**，不做浮层气泡。
+   卡片上方没有空间——操作栏吊在卡片顶边（top:-16px），再往上就是泳道题头
+   （sticky，z-index 3），气泡会被题头压住；往下又会盖住卡片自己的标题行。
+   所以让按钮在悬停时长出文字、工具条整体往左长：整个工具条都在卡片内容之上，
+   不压任何东西，也不需要额外定位 */
+.gnode-act-tip {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  transition:
+    max-width 0.14s ease,
+    opacity 0.1s ease,
+    margin-left 0.14s ease;
+}
+.gnode-act:hover,
+.gnode-act:focus-visible {
+  width: auto;
+  padding: 0 6px;
+}
+.gnode-act:hover .gnode-act-tip,
+.gnode-act:focus-visible .gnode-act-tip {
+  max-width: 90px;
+  margin-left: 4px;
+  opacity: 1;
+}
 /* ---- 右下角浮层：预览图 + 缩放 ---- */
 .gg-dock {
   position: absolute;
@@ -2495,8 +2548,8 @@ table.tbl tbody tr:hover td {
   padding: 5px;
   border-radius: 9px;
   border: 0.5px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-  backdrop-filter: blur(8px);
+  /* 不用 backdrop-filter：浮层套在窗口里，再叠一层背板模糊等于每帧多算一次 */
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
   box-shadow: var(--shadow-sm);
   cursor: crosshair;
   opacity: 0.82;
@@ -2563,8 +2616,7 @@ table.tbl tbody tr:hover td {
   padding: 2px;
   border-radius: 9px;
   border: 0.5px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
   box-shadow: var(--shadow-sm);
 }
 .gg-zoomctl button {

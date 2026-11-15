@@ -84,6 +84,26 @@ const ZOOM_MIN = 0.4
 const ZOOM_MAX = 1.8
 const clampZoom = (k: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(k * 100) / 100))
 
+/** 两次测量的结果是否完全一样（差 0.5px 以内算一样，亚像素抖动不值得重渲染） */
+function sameBoxes(a: Record<string, Box>, b: Record<string, Box>): boolean {
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  for (const k of ka) {
+    const x = a[k]
+    const y = b[k]
+    if (!y) return false
+    if (
+      Math.abs(x.x - y.x) > 0.5 ||
+      Math.abs(x.y - y.y) > 0.5 ||
+      Math.abs(x.w - y.w) > 0.5 ||
+      Math.abs(x.h - y.h) > 0.5
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 function Card({
   nodeKey,
   selected,
@@ -124,13 +144,22 @@ function Card({
   )
 }
 
+/**
+ * 卡片右上角的操作按钮。
+ *
+ * 说明气泡是自己画的，没用原生 `title`：原生的要悬停一秒才出来、字体/配色跟不了
+ * 主题、在缩放过的 stage 里位置也不受控。`tip` 是给人看的短标签（「连目标」），
+ * `title` 留给读屏（「新建目标 / 连到已有目标」）。
+ */
 function Act({
   title,
+  tip,
   onClick,
   danger,
   children,
 }: {
   title: string
+  tip?: string
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   danger?: boolean
   children: React.ReactNode
@@ -139,7 +168,6 @@ function Act({
     <button
       type="button"
       className={cx('gnode-act', danger && 'danger')}
-      title={title}
       aria-label={title}
       onClick={(e) => {
         e.stopPropagation()
@@ -147,6 +175,9 @@ function Act({
       }}
     >
       {children}
+      <span className="gnode-act-tip" aria-hidden="true">
+        {tip ?? title}
+      </span>
     </button>
   )
 }
@@ -179,10 +210,10 @@ function ListenerNode({
       className={cx('gnode-listener', !listener.enabled && 'off')}
       actions={
         <>
-          <Act title="编辑监听器" onClick={onEdit}>
+          <Act title="编辑监听器" tip="编辑" onClick={onEdit}>
             <IconEdit size={11} />
           </Act>
-          <Act title="删除监听器" onClick={onDelete} danger>
+          <Act title="删除监听器" tip="删除" onClick={onDelete} danger>
             <IconTrash size={11} />
           </Act>
         </>
@@ -237,11 +268,12 @@ function RouteNode({
       className={cx('gnode-route', !route.enabled && 'off', shadowed && 'warn')}
       actions={
         <>
-          <Act title="编辑路由" onClick={onEdit}>
+          <Act title="编辑路由" tip="编辑" onClick={onEdit}>
             <IconEdit size={11} />
           </Act>
           <Act
             title="新建目标 / 连到已有目标"
+            tip="连目标"
             onClick={(e) => {
               const box = e.currentTarget.getBoundingClientRect()
               onAddTarget({ x: box.right + 6, y: box.top })
@@ -249,7 +281,7 @@ function RouteNode({
           >
             <IconLink size={11} />
           </Act>
-          <Act title="删除路由" onClick={onDelete} danger>
+          <Act title="删除路由" tip="删除" onClick={onDelete} danger>
             <IconTrash size={11} />
           </Act>
         </>
@@ -316,11 +348,15 @@ function TargetNode({
       className={cx('gnode-target', slot.kind, slot.balancer && !slot.balancer.enabled && 'off')}
       actions={
         <>
-          <Act title={isEntity ? '编辑负载均衡器' : '编辑这条路由的转发目标'} onClick={onEdit}>
+          <Act
+            title={isEntity ? '编辑负载均衡器' : '编辑这条路由的转发目标'}
+            tip={isEntity ? '编辑' : '改目标'}
+            onClick={onEdit}
+          >
             <IconEdit size={11} />
           </Act>
           {onDelete && (
-            <Act title="删除负载均衡器" onClick={onDelete} danger>
+            <Act title="删除负载均衡器" tip="删除" onClick={onDelete} danger>
               <IconTrash size={11} />
             </Act>
           )}
@@ -380,7 +416,7 @@ function BackendNode({
       onClick={onSelect}
       className="gnode-backend"
       actions={
-        <Act title="编辑所属负载均衡器" onClick={onEdit}>
+        <Act title="编辑所属负载均衡器" tip="编辑" onClick={onEdit}>
           <IconEdit size={11} />
         </Act>
       }
@@ -525,7 +561,7 @@ export function GatewayGraph({
   const [zoom, setZoom] = useState(1)
   const [mapOpen, setMapOpen] = useState(true)
 
-  const measure = useCallback(() => {
+  const measureNow = useCallback(() => {
     const wrap = wrapRef.current
     if (!wrap) return
     const k = zoomRef.current
@@ -547,12 +583,25 @@ export function GatewayGraph({
       maxX = Math.max(maxX, box.x + box.w)
       maxY = Math.max(maxY, box.y + box.h)
     })
-    setBoxes(next)
+    // 位置没变就别换对象：换一次就是三十张卡片重渲染，拖窗口时每帧都来一次
+    setBoxes((prev) => (sameBoxes(prev, next) ? prev : next))
     // 画布尺寸从节点反推，不读 scrollWidth：它受 zoom 与外层 padding 影响，
     // 反推出来的值在任何缩放下都是同一份。不加余量——SVG 是绝对定位的，
     // 多给 1px 就是白白多出一条横向滚动条
-    setSize({ w: maxX + 1, h: maxY + 1 })
+    const w = maxX + 1
+    const h = maxY + 1
+    setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
   }, [])
+
+  // ResizeObserver 在一帧里可能回调多次（拖窗口、缩放），合并成一次测量
+  const measureRaf = useRef(0)
+  const measure = useCallback(() => {
+    if (measureRaf.current) return
+    measureRaf.current = requestAnimationFrame(() => {
+      measureRaf.current = 0
+      measureNow()
+    })
+  }, [measureNow])
 
   const measureView = useCallback(() => {
     const el = scrollRef.current
@@ -561,10 +610,10 @@ export function GatewayGraph({
   }, [])
 
   useLayoutEffect(() => {
-    measure()
+    measureNow()
     measureView()
     const id = requestAnimationFrame(() => {
-      measure()
+      measureNow()
       measureView()
     })
     const wrap = wrapRef.current
@@ -579,16 +628,22 @@ export function GatewayGraph({
       ro.disconnect()
       roView.disconnect()
     }
-  }, [measure, measureView, model])
+  }, [measure, measureNow, measureView, model])
 
   // zoom 不改变元素自身的布局尺寸，ResizeObserver 不会响，得自己重算一次
   useLayoutEffect(() => {
     zoomRef.current = zoom
-    measure()
+    measureNow()
     measureView()
-  }, [zoom, measure, measureView])
+  }, [zoom, measureNow, measureView])
 
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafRef.current)
+      cancelAnimationFrame(measureRaf.current)
+    },
+    [],
+  )
 
   const onScroll = useCallback(() => {
     if (rafRef.current) return
@@ -600,7 +655,7 @@ export function GatewayGraph({
   }, [])
 
   const edges = useMemo(() => {
-    return model.links.flatMap((link) => {
+    return model.links.flatMap((link, i) => {
       const a = boxes[link.from]
       const b = boxes[link.to]
       if (!a || !b) return []
@@ -614,6 +669,8 @@ export function GatewayGraph({
           key: `${link.from}->${link.to}`,
           tone: link.tone,
           d: `M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}`,
+          // 每条线的光点错开相位（负延迟 = 从周期中间开始），否则整屏一起亮
+          delay: `${(-((i * 0.47) % 2.6)).toFixed(2)}s`,
         },
       ]
     })
@@ -692,8 +749,12 @@ export function GatewayGraph({
                     className={cx('gg-edge', edge.tone)}
                     markerEnd={`url(#gg-arrow-${edge.tone})`}
                   />
-                  {/* 第二层是流动的短划：方向感靠它，箭头只负责「到哪」 */}
-                  <path d={edge.d} className={cx('gg-flow', edge.tone)} />
+                  {/* 第二层是跑动的光点：方向感靠它，箭头只负责「到哪」 */}
+                  <path
+                    d={edge.d}
+                    className={cx('gg-flow', edge.tone)}
+                    style={{ animationDelay: edge.delay }}
+                  />
                 </g>
               ))}
             </svg>
