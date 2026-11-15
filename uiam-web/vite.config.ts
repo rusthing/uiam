@@ -4,7 +4,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 // 开发期把 /uiam 反代到本机 uiam-svr（9002），生产由网关按前缀转发，
 // 两边都不需要 CORS 配置——这也是 uiam 自己发布出去的那份 TOML 在做的事。
-export default defineConfig({
+//
+// 生产静态站挂在 gatex 的 static/uiam-web/ 下，路由前缀就是 /uiam-web，
+// 所以构建产物的资源引用必须带这个前缀（与 adm-rs-web / syn-web 等一致）；
+// dev 仍挂根路径，localhost:5182/ 直接可开。
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/uiam-web/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
     port: 5180,
@@ -20,4 +25,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
-})
+}))
