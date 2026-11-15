@@ -43,8 +43,11 @@ import {
 import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
 import {
   IconAlert,
+  IconArrowDown,
+  IconArrowUp,
   IconEdit,
   IconFit,
+  IconGrip,
   IconLink,
   IconMap,
   IconMinus,
@@ -156,12 +159,14 @@ function Act({
   tip,
   onClick,
   danger,
+  disabled,
   children,
 }: {
   title: string
   tip?: string
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
   danger?: boolean
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -169,6 +174,7 @@ function Act({
       type="button"
       className={cx('gnode-act', danger && 'danger')}
       aria-label={title}
+      disabled={disabled}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e)
@@ -181,6 +187,38 @@ function Act({
     </button>
   )
 }
+
+/**
+ * 拖拽把手：**不是按钮行为**，按下即开始拖。
+ *
+ * 为什么不整张卡片可拖：卡片本身是「点一下选中」的按钮，全卡可拖就得加移动阈值，
+ * 手一抖就变成拖动、点不中；而且卡片里有文字，拖动时还会选中文本。
+ * 把手是独立的一小块，语义干净。
+ */
+function GripAct({
+  title,
+  onDown,
+}: {
+  title: string
+  onDown: (e: React.PointerEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <button
+      type="button"
+      className="gnode-act grip"
+      aria-label={title}
+      title={title}
+      onPointerDown={onDown}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <IconGrip size={11} />
+      <span className="gnode-act-tip" aria-hidden="true">
+        拖动排序
+      </span>
+    </button>
+  )
+}
+
 
 /* ---------------------------------------------------------------- 各类节点 */
 
@@ -247,6 +285,11 @@ function RouteNode({
   onEdit,
   onDelete,
   onAddTarget,
+  onMove,
+  onGripDown,
+  dragging,
+  first,
+  last,
 }: {
   route: Route
   index: number
@@ -257,6 +300,12 @@ function RouteNode({
   onEdit: () => void
   onDelete: () => void
   onAddTarget: (at: { x: number; y: number }) => void
+  /** 上移 / 下移一位：顺序就是匹配优先级，挪一格是最常用的一次调整 */
+  onMove: (delta: -1 | 1) => void
+  onGripDown: (e: React.PointerEvent<HTMLButtonElement>) => void
+  dragging: boolean
+  first: boolean
+  last: boolean
 }) {
   const flags = routeFlags(route.toJson, route.logJson)
   const ignored = unknownUriKeys(route.toJson)
@@ -265,9 +314,16 @@ function RouteNode({
       nodeKey={routeKey(route.id)}
       selected={selected}
       onClick={onSelect}
-      className={cx('gnode-route', !route.enabled && 'off', shadowed && 'warn')}
+      className={cx('gnode-route', !route.enabled && 'off', shadowed && 'warn', dragging && 'dragging')}
       actions={
         <>
+          <GripAct title="拖动调整匹配顺序" onDown={onGripDown} />
+          <Act title="上移一位（更优先匹配）" tip="上移" onClick={() => onMove(-1)} disabled={first}>
+            <IconArrowUp size={11} />
+          </Act>
+          <Act title="下移一位" tip="下移" onClick={() => onMove(1)} disabled={last}>
+            <IconArrowDown size={11} />
+          </Act>
           <Act title="编辑路由" tip="编辑" onClick={onEdit}>
             <IconEdit size={11} />
           </Act>
@@ -524,6 +580,8 @@ export function GatewayGraph({
   onAddListener,
   onAddBalancer,
   onAddTarget,
+  onMoveRoute,
+  onReorderRoutes,
 }: {
   gateway: Gateway
   listeners: Listener[]
@@ -541,6 +599,10 @@ export function GatewayGraph({
   onAddBalancer: () => void
   /** 从路由卡片给这条路由新建 / 连一个目标；`at` 是弹出面板的锚点（视口坐标） */
   onAddTarget: (route: Route, at: { x: number; y: number }) => void
+  /** 组内上移/下移一位 */
+  onMoveRoute: (route: Route, delta: -1 | 1) => void
+  /** 拖动后落定的整组顺序（含被拖的那条），`orderedIds` 是新顺序的完整列表 */
+  onReorderRoutes: (listenerId: string, orderedIds: string[]) => void
 }) {
   const model = useMemo(() => buildGraph(listeners, routes, balancers), [listeners, routes, balancers])
   const staticRoot = useMemo(() => {
@@ -560,6 +622,123 @@ export function GatewayGraph({
   const [scroll, setScroll] = useState({ left: 0, top: 0 })
   const [zoom, setZoom] = useState(1)
   const [mapOpen, setMapOpen] = useState(true)
+
+  /* ------------------------------------------------------ 拖动路由调顺序
+   *
+   * 顺序就是匹配优先级，所以「把卡片往上拖」比「打开表单改 sort_no」直观得多。
+   *
+   * 拖拽的坐标一律换算成**布局坐标**（`(clientY - wrap.top) / zoom`），跟 `boxes`
+   * 同一套口径——否则缩到 80% 时插入线会偏。落点是「插到第几格」而不是「换到哪个
+   * 位置」：指针越过某张卡的中线就插到它前面，最后一张之后就是末尾。
+   */
+  const [drag, setDrag] = useState<{ routeId: string; listenerId: string; slot: number } | null>(null)
+  const dragRef = useRef<{ routeId: string; listenerId: string; fromIndex: number; slot: number } | null>(
+    null,
+  )
+
+  /** 某条路由所在的 lane 与它的下标 */
+  const laneOf = useCallback(
+    (routeId: string) => {
+      for (const lane of model.lanes) {
+        const i = lane.routes.findIndex((r) => r.id === routeId)
+        if (i >= 0) return { lane, index: i }
+      }
+      return null
+    },
+    [model],
+  )
+
+  /** 指针落在第几个插槽（0..n） */
+  const slotAt = useCallback(
+    (listenerId: string, y: number) => {
+      const lane = model.lanes.find((l) => l.listener.id === listenerId)
+      if (!lane) return 0
+      for (let i = 0; i < lane.routes.length; i++) {
+        const b = boxes[routeKey(lane.routes[i].id)]
+        if (!b) continue
+        if (y < b.y + b.h / 2) return i
+      }
+      return lane.routes.length
+    },
+    [model, boxes],
+  )
+
+  const onGripDown =
+    (listenerId: string, routeId: string) => (e: React.PointerEvent<HTMLButtonElement>) => {
+      // 别让按下冒泡到卡片：那会顺手选中它，还会触发卡片的 pointer 逻辑
+      e.stopPropagation()
+      e.preventDefault()
+      const at = laneOf(routeId)
+      if (!at) return
+      dragRef.current = { routeId, listenerId, fromIndex: at.index, slot: at.index }
+      setDrag({ routeId, listenerId, slot: at.index })
+    }
+
+  // 拖动期间在 window 上收事件：把手上虽然能 setPointerCapture，但这里要的是
+  // 「指针跑到哪都能算落点」，用 window 监听更直接，也不必让每个把手都带 move/up
+  useEffect(() => {
+    if (!drag) return
+    const wrap = wrapRef.current
+    if (!wrap) return
+
+    const move = (e: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      const y = (e.clientY - wrap.getBoundingClientRect().top) / zoomRef.current
+      const slot = slotAt(d.listenerId, y)
+      if (slot === d.slot) return
+      d.slot = slot
+      setDrag({ routeId: d.routeId, listenerId: d.listenerId, slot })
+    }
+
+    const finish = (commit: boolean) => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (!d || !commit) return
+      const lane = model.lanes.find((l) => l.listener.id === d.listenerId)
+      if (!lane) return
+      // slot 是「插到第几格」，去掉自己之后要减一
+      const to = d.slot > d.fromIndex ? d.slot - 1 : d.slot
+      if (to === d.fromIndex) return
+      const ids = lane.routes.map((r) => r.id).filter((id) => id !== d.routeId)
+      ids.splice(to, 0, d.routeId)
+      onReorderRoutes(d.listenerId, ids)
+    }
+
+    const up = () => finish(true)
+    const cancel = () => finish(false)
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') finish(false)
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      window.removeEventListener('keydown', key)
+    }
+  }, [drag, model, slotAt, onReorderRoutes])
+
+  /** 插入线画在哪：插槽是「卡与卡之间」，所以取目标卡的顶边或最后一张的底边 */
+  const dropLine = useMemo(() => {
+    if (!drag) return null
+    const lane = model.lanes.find((l) => l.listener.id === drag.listenerId)
+    if (!lane || lane.routes.length === 0) return null
+    const firstBox = boxes[routeKey(lane.routes[0].id)]
+    if (!firstBox) return null
+    const target = lane.routes[drag.slot]
+    const y = target
+      ? (boxes[routeKey(target.id)]?.y ?? 0) - 5
+      : (boxes[routeKey(lane.routes[lane.routes.length - 1].id)]?.y ?? 0) +
+        (boxes[routeKey(lane.routes[lane.routes.length - 1].id)]?.h ?? 0) +
+        5
+    return { x: firstBox.x, w: firstBox.w, y }
+  }, [drag, model, boxes])
 
   const measureNow = useCallback(() => {
     const wrap = wrapRef.current
@@ -724,7 +903,7 @@ export function GatewayGraph({
             </div>
           </div>
 
-          <div className="gg-wrap" ref={wrapRef}>
+          <div className={cx('gg-wrap', drag && 'dragging')} ref={wrapRef}>
             <svg className="gg-edges" width={size.w} height={size.h} aria-hidden="true">
               <defs>
                 {(['neutral', 'lb', 'host', 'static', 'bad'] as Tone[]).map((tone) => (
@@ -758,6 +937,15 @@ export function GatewayGraph({
                 </g>
               ))}
             </svg>
+
+            {/* 插入线：拖到哪一格就画在哪两卡之间，松手才落库 */}
+            {dropLine && (
+              <div
+                className="gg-dropline"
+                style={{ left: dropLine.x, top: dropLine.y, width: dropLine.w }}
+                aria-hidden="true"
+              />
+            )}
 
             <div className="gg-grid" style={{ gridTemplateRows: `repeat(${model.rows}, auto)` }}>
               {model.lanes.map((lane, laneIndex) => {
@@ -810,6 +998,11 @@ export function GatewayGraph({
                           onEdit={() => onEdit({ kind: 'route', id: route.id })}
                           onDelete={() => onDelete({ kind: 'route', id: route.id })}
                           onAddTarget={(at) => onAddTarget(route, at)}
+                          onMove={(delta) => onMoveRoute(route, delta)}
+                          onGripDown={(e) => onGripDown(lane.listener.id, route.id)(e)}
+                          dragging={drag?.routeId === route.id}
+                          first={i === 0}
+                          last={i === lane.routes.length - 1}
                         />
                       </div>
                     ))}

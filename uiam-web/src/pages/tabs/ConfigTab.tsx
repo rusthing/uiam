@@ -16,7 +16,7 @@
  * 发生在图内部，`sticky` 才有参照物。窗口是可以在大屏里拖动缩放的，`vh` 算不出
  * 窗口自己的高度，所以从外层滚动容器 `.gw-main` 量一次，写进 `--cfg-h`。
  */
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { toShape } from '../../lib/format'
 import { asBalancerPayload, asListenerPayload, asRoutePayload } from '../../lib/payload'
@@ -191,6 +191,64 @@ export function ConfigTab({
     }
   }
 
+  /**
+   * 重排一个监听器下的路由顺序。
+   *
+   * 顺序就是匹配优先级（先命中先生效），所以这里落的是 `sort_no`。做法是
+   * **尽量少改**：把这组现有的 sort_no 收集起来排序，按新顺序位置对位重新分配，
+   * 只 PUT 值真的变了的那些。挪一格 → 2 个 PUT；sort_no 有重复或为 0（历史脏数据）
+   * 就退回 1..n 全量重编号，否则「改了等于没改」。
+   *
+   * 服务端没有批量排序接口（`#[ctrl]` 只生成了标准 CRUD），所以是串行 PUT；
+   * 中途失败会留下半套顺序，但 sort_no 只是排序键、不是唯一约束，下一次拖动
+   * 会重新对齐，不会把数据搞坏。
+   */
+  const reorderRoutes = useCallback(
+    async (listenerId: string, orderedIds: string[]) => {
+      const rows = routes
+        .filter((r) => r.listenerId === listenerId)
+        .sort((a, b) => a.sortNo - b.sortNo || a.id.localeCompare(b.id))
+      if (rows.length !== orderedIds.length) return
+      const pool = rows.map((r) => r.sortNo)
+      const clean = new Set(pool).size === pool.length
+      const sortedPool = [...pool].sort((a, b) => a - b)
+      const plan = orderedIds
+        .map((id, i) => {
+          const row = rows.find((r) => r.id === id)
+          return row ? { row, next: clean ? sortedPool[i] : i + 1 } : null
+        })
+        .filter((x): x is { row: Route; next: number } => Boolean(x))
+        .filter(({ row, next }) => row.sortNo !== next)
+      if (plan.length === 0) return
+      try {
+        for (const { row, next } of plan) {
+          await api.route.update({ ...asRoutePayload(row), sortNo: next })
+        }
+        onChanged()
+      } catch (e) {
+        toast.error((e as ApiError).message)
+        onChanged()
+      }
+    },
+    [routes, onChanged, toast],
+  )
+
+  /** 上移 / 下移一位：只换相邻两条的 sort_no */
+  const moveRoute = useCallback(
+    (route: Route, delta: -1 | 1) => {
+      const rows = routes
+        .filter((r) => r.listenerId === route.listenerId)
+        .sort((a, b) => a.sortNo - b.sortNo || a.id.localeCompare(b.id))
+      const i = rows.findIndex((r) => r.id === route.id)
+      const j = i + delta
+      if (i < 0 || j < 0 || j >= rows.length) return
+      const ids = rows.map((r) => r.id)
+      ;[ids[i], ids[j]] = [ids[j], ids[i]]
+      void reorderRoutes(route.listenerId, ids)
+    },
+    [routes, reorderRoutes],
+  )
+
   const confirmRemove = async () => {
     if (!removing) return
     try {
@@ -322,6 +380,8 @@ export function ConfigTab({
                   onAddListener={() => setListenerForm({ open: true, editing: null })}
                   onAddBalancer={() => setBalancerForm({ open: true, editing: null })}
                   onAddTarget={(route, at) => setPicker({ route, at })}
+                  onMoveRoute={moveRoute}
+                  onReorderRoutes={reorderRoutes}
                 />
               )}
             </div>

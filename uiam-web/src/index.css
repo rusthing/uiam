@@ -2528,6 +2528,67 @@ table.tbl tbody tr:hover td {
   margin-left: 4px;
   opacity: 1;
 }
+/* ---- 拖动排序 ---- */
+/* 插入线画在 `.gg-wrap` 里（和卡片同一坐标系），所以左/上/宽都是布局 px */
+.gg-dropline {
+  position: absolute;
+  z-index: 5;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 22%, transparent);
+  pointer-events: none;
+}
+/* 两端各一个小圆点，读起来像「插到这里」而不是「这里有一条线」 */
+.gg-dropline::before,
+.gg-dropline::after {
+  content: '';
+  position: absolute;
+  top: -2.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.gg-dropline::before {
+  left: -3px;
+}
+.gg-dropline::after {
+  right: -3px;
+}
+/* 拖动期间整块图不许选中文字，否则会把卡片里的路径/名字刷成蓝色 */
+.gg-wrap.dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+.gnode.dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.gnode-act.grip {
+  cursor: grab;
+  touch-action: none;
+}
+.gnode-act.grip:active {
+  cursor: grabbing;
+}
+/* 到头了（第一条的上移 / 最后一条的下移）：压暗但仍然占位，避免工具条宽度跳动 */
+.gnode-act:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.gnode-act:disabled:hover {
+  width: 19px;
+  padding: 0;
+  background: none;
+  color: var(--t3);
+}
+.gnode-act:disabled .gnode-act-tip {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+}
+
 /* ---- 右下角浮层：预览图 + 缩放 ---- */
 .gg-dock {
   position: absolute;

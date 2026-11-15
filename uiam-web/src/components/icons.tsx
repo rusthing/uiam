@@ -221,3 +221,29 @@ export const IconTerminal = (p: Props) => (
     <path d="m7 9 3 3-3 3M13 15h4" />
   </Svg>
 )
+
+export const IconArrowUp = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </Svg>
+)
+
+export const IconArrowDown = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 5v14M6 13l6 6 6-6" />
+  </Svg>
+)
+
+/** 拖拽把手：两列小圆点，跟 macOS 列表重排的手感一致 */
+export const IconGrip = (p: Props) => (
+  <Svg {...p} strokeWidth={0}>
+    <g fill="currentColor">
+      <circle cx="9" cy="6" r="1.5" />
+      <circle cx="15" cy="6" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="18" r="1.5" />
+      <circle cx="15" cy="18" r="1.5" />
+    </g>
+  </Svg>
+)
