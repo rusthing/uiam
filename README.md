@@ -66,10 +66,20 @@ npm run build    # 产物在 dist/
 ```
 
 - `prototype/` 是设计原型（四方案对比，**A = macOS 26 Tahoe / Liquid Glass 已定稿**）；
-  工程代码按 A 实现：壁纸 + 菜单栏 + 组件网格 + Dock + 启动台 + 可拖拽窗口
+  工程代码按 A 实现：壁纸 + 菜单栏 + 组件网格 + Dock + 启动台 +
+  **可拖拽、八向改大小的窗口**
 - 业务内容住在窗口里（网关配置 / 接口速查 / 系统设置 / 关于），不是侧边栏后台
-- 网关的路由用**画的**：入口 → 有序路由链 → 目标，纵向位置就是匹配顺序，拖动改序
-  （first-match-wins 在表格里只是一列数字，在图里是能上手挪的位置）
+- 网关实例列在窗口**顶部一排 chip**，不在左侧；窗口拉窄时用**容器查询**（不是媒体查询）
+  把属性栏折到图下方
+- **整个网关配置就是一张图**：四列 `监听器 → 路由 → 目标 → 后端`，纵向位置即 `sort_no`
+  （first-match-wins 在表格里只是一列数字，在图里是能看懂的先后），右上角可切回表格，
+  右侧属性栏看完整字段。不属于任何一条链路的顶层段（`static` / `upstream-error` /
+  `ops` / `pingora-conf` / 附加 TOML）集中在图底的「全局」带里，并显示线上版本与 checksum
+- 卡片右上角直接启停，新建/编辑表单里没有启用项；只标**偏离 gatex 默认值**的行为，
+  无效字段（`[upstream-error].content-type`、`StripPrefix.parts` 等 serde 会静默忽略的键）
+  在图和属性栏里显式标红
 - 主题只有 `light` / `dark` 两态，点菜单栏图标直接切，扩散圆心是图标中心（见 `src/lib/theme.ts`）
 - 一期没有登录，写接口靠「系统设置」里的操作者 ID 填 `X-User-Id`，审计落在 `release.creater_id`
+- 生产形态：`npm run build` 的 `dist/` 由 gatex 的 `[static].root-dir` 托管，`/uiam` 前缀
+  反代到 uiam-svr，两边同源不需要 CORS；dev 侧由 `vite.config.ts` 的 `/uiam` proxy 对齐
 - 详细说明见 `uiam-web/README.md`

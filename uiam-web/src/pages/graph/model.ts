@@ -83,7 +83,8 @@ export function targetSummary(slot: TargetSlot): { title: string; sub: string } 
     case 'host':
       return {
         title: `Host · ${target.addr || '（未填地址）'}`,
-        sub: target.preserveHost ? '直连 · 透传原 Host' : '直连 · 改写 Host',
+        // preserve-host 没写时 gatex 默认 true；只有显式 false 才是改写
+        sub: target.preserveHost === false ? '直连 · 改写 Host' : '直连 · 透传原 Host',
       }
     case 'static':
       return { title: 'Static · 本地文件', sub: target.spa ? 'SPA 回退 index.html' : '按路径找文件' }

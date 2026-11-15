@@ -84,6 +84,11 @@ export function describeAddrs(addrsJson?: string | null): string[] {
   })
 }
 
+/** 有几个地址绑了证书（证书路径本身不进库，也不该在图上展示） */
+export function listenerTlsCount(addrsJson?: string | null): number {
+  return asArray(parseJson(addrsJson)).filter((item) => Boolean(asDict(item)?.tls)).length
+}
+
 /** 匹配条件摘要：把 5 种变体压成一句中文 */
 export function describeMatcher(matcherJson?: string | null): string {
   const d = asDict(parseJson(matcherJson))
@@ -181,24 +186,115 @@ export function toShape(toJson?: string | null): {
   addr?: string
   name?: string
   spa?: boolean
+  /** 没写 = 用 gatex 的默认（透传）；false 才是显式改写 */
   preserveHost?: boolean
+  /** URI 改写规则。Keep 是默认值，等于没改 */
+  uriType?: string
+  uriFrom?: string
+  uriTo?: string
+  uriPrefix?: string
+  cors?: boolean
+  cacheControl?: string
+  upstreamTls?: boolean
 } {
   const d = asDict(parseJson(toJson))
   if (!d) return { type: '' }
+  const uri = asDict(d.uri)
+  const ph = d['preserve-host'] ?? d.preserveHost
   return {
     type: str(d.type),
     addr: str(d.addr) || undefined,
     name: str(d.name) || undefined,
     spa: d.spa === true || undefined,
-    preserveHost: (d['preserve-host'] ?? d.preserveHost) === true || undefined,
+    preserveHost: ph === undefined || ph === null ? undefined : ph === true,
+    uriType: uri ? str(uri.type) || undefined : undefined,
+    uriFrom: uri ? str(uri.from) || undefined : undefined,
+    uriTo: uri ? str(uri.to) || undefined : undefined,
+    uriPrefix: uri ? str(uri.prefix) || undefined : undefined,
+    cors: Boolean(d.cors),
+    cacheControl: str(d['cache-control'] ?? d.cacheControl) || undefined,
+    upstreamTls: Boolean(d.tls),
   }
 }
 
-/** 负载均衡器摘要：类型 + 后端数 */
+/**
+ * 路由卡片上的「行为」标记。
+ *
+ * 只标**偏离 gatex 默认值**的东西：默认 `uri = Keep`、`preserve-host = true`、
+ * 无 CORS / 无缓存头 / 无上游 TLS / 默认日志。全都标出来等于什么都没标。
+ */
+export function routeFlags(toJson?: string | null, logJson?: string | null): string[] {
+  const t = toShape(toJson)
+  if (!t.type) return []
+  const flags: string[] = []
+  switch (t.uriType) {
+    case 'StripPrefix':
+      flags.push('去前缀')
+      break
+    case 'AddPrefix':
+      flags.push(`加前缀 ${t.uriPrefix ?? ''}`.trim())
+      break
+    case 'Replace':
+    case 'ReplacePrefix':
+      flags.push(`路径替换 ${t.uriFrom ?? ''} → ${t.uriTo ?? ''}`)
+      break
+    case 'Keep':
+      break
+    default:
+      if (t.uriType) flags.push(`改写 ${t.uriType}`)
+  }
+  if (t.preserveHost === false) flags.push('改写 Host')
+  if (t.cors) flags.push('CORS')
+  if (t.cacheControl) flags.push('缓存头')
+  if (t.upstreamTls) flags.push('上游 TLS')
+  if (logJson && logJson.trim() && logJson.trim() !== '{}') flags.push('独立日志')
+  return flags
+}
+
+/**
+ * `uri` 里 gatex 不认识的键。
+ *
+ * 真实例子：库里写了 `{"type":"StripPrefix","parts":2}`，但 gatex 的
+ * `StripPrefix` 是 unit variant，`parts` 会被 serde 静默丢掉——渲染出来的
+ * TOML 里只有 `type = "StripPrefix"`。界面必须把这件事说出来，否则用户以为
+ * 自己配了两段前缀，线上其实只去了一段。
+ */
+export function unknownUriKeys(toJson?: string | null): string[] {
+  const d = asDict(parseJson(toJson))
+  const uri = asDict(d?.uri)
+  if (!uri) return []
+  const known: Record<string, string[]> = {
+    Keep: ['type'],
+    StripPrefix: ['type'],
+    Replace: ['type', 'from', 'to'],
+    AddPrefix: ['type', 'prefix'],
+    ReplacePrefix: ['type', 'from', 'to'],
+  }
+  const allow = known[str(uri.type)]
+  return allow ? Object.keys(uri).filter((k) => !allow.includes(k)) : []
+}
+
+/** 健康检查配置。`configured=false` 表示库里没写，渲染时由 gatex 补默认值 */
+export interface HealthCheckInfo {
+  configured: boolean
+  kind?: string
+  frequency?: string
+  timeout?: string
+  parallel?: boolean
+  consecutiveSuccess?: number | string
+  consecutiveFailure?: number | string
+  httpPath?: string
+  httpHost?: string
+  raw: Record<string, unknown>
+}
+
+/** 负载均衡器摘要：类型 + 后端 + 算法 + 健康检查 + 更新频率 */
 export function describeBalancer(configJson?: string | null): {
   type: string
   backends: string[]
   algorithm?: string
+  updateFrequency?: string
+  healthCheck: HealthCheckInfo
 } {
   const d = asDict(parseJson(configJson)) ?? {}
   const type = str(d.type) || '未知'
@@ -214,7 +310,26 @@ export function describeBalancer(configJson?: string | null): {
   } else if (type === 'Swarm') {
     backends = [`${str(d['service-name'] ?? d.serviceName)}:${str(d.port)}`]
   }
-  return { type, backends, algorithm: str(d['selection-algorithm'] ?? d.selectionAlgorithm) || undefined }
+  const hc = asDict(d['health-check'] ?? d.healthCheck) ?? {}
+  const num = (v: unknown) => (typeof v === 'number' || typeof v === 'string' ? v : undefined)
+  return {
+    type,
+    backends,
+    algorithm: str(d['selection-algorithm'] ?? d.selectionAlgorithm) || undefined,
+    updateFrequency: str(d['update-frequency'] ?? d.updateFrequency) || undefined,
+    healthCheck: {
+      configured: Object.keys(hc).length > 0,
+      kind: str(hc.kind) || undefined,
+      frequency: str(hc.frequency) || undefined,
+      timeout: str(hc.timeout) || undefined,
+      parallel: typeof hc.parallel === 'boolean' ? hc.parallel : undefined,
+      consecutiveSuccess: num(hc['consecutive-success'] ?? hc.consecutiveSuccess),
+      consecutiveFailure: num(hc['consecutive-failure'] ?? hc.consecutiveFailure),
+      httpPath: str(hc['http-path'] ?? hc.httpPath) || undefined,
+      httpHost: str(hc['http-host'] ?? hc.httpHost) || undefined,
+      raw: hc,
+    },
+  }
 }
 
 /** 从路由的 to 里取出被引用的 LB 名（用于统计「谁在用这个 LB」） */

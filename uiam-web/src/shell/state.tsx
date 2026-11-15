@@ -38,6 +38,7 @@ interface ShellApi {
   toggleMax: (id: string) => void
   focusWin: (id: string) => void
   moveWin: (id: string, x: number, y: number) => void
+  resizeWin: (id: string, geo: { x: number; y: number; w: number; h: number }) => void
   pinned: string[]
   togglePin: (id: string) => void
   editing: boolean
@@ -146,6 +147,20 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  /**
+   * 改窗口大小。
+   *
+   * 只负责落值，不负责钳制——钳制必须在拖拽方向上做（往左拖时宽度变小、x 要跟着右移，
+   * 到下限之后 x 就不能再动），那需要知道是哪个把手在拖，这里看不到。
+   * 所以几何钳制在 `WindowFrame` 里算完再传进来。
+   */
+  const resizeWin = useCallback(
+    (id: string, geo: { x: number; y: number; w: number; h: number }) => {
+      setWins((prev) => prev.map((w) => (w.id === id ? { ...w, ...geo, max: false } : w)))
+    },
+    [],
+  )
+
   const togglePin = useCallback((id: string) => {
     setPinned((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -183,6 +198,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       toggleMax,
       focusWin,
       moveWin,
+      resizeWin,
       pinned,
       togglePin,
       editing,
@@ -199,6 +215,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       toggleMax,
       focusWin,
       moveWin,
+      resizeWin,
       pinned,
       togglePin,
       editing,

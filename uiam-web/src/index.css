@@ -494,6 +494,80 @@ code,
   border-radius: 0 0 var(--win-radius) var(--win-radius);
   transition: background 0.28s;
 }
+
+/* ---- 改大小的把手：贴在窗口内侧 6px，四角 12px ---- */
+.rz {
+  position: absolute;
+  z-index: 6;
+  /* 触屏上别让浏览器把拖拽解释成滚动 */
+  touch-action: none;
+}
+.rz-n,
+.rz-s {
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.rz-n {
+  top: 0;
+}
+.rz-s {
+  bottom: 0;
+}
+.rz-w,
+.rz-e {
+  top: 12px;
+  bottom: 12px;
+  width: 6px;
+  cursor: ew-resize;
+}
+.rz-w {
+  left: 0;
+}
+.rz-e {
+  right: 0;
+}
+.rz-ne,
+.rz-nw,
+.rz-se,
+.rz-sw {
+  width: 12px;
+  height: 12px;
+}
+.rz-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.rz-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+.rz-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+.rz-se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+/* 右下角给一个抓握感的斜纹，鼠标不悬停也看得出这儿能拉 */
+.rz-se::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--line-strong);
+  border-bottom: 1.5px solid var(--line-strong);
+  opacity: 0.5;
+  pointer-events: none;
+}
 .win-body::-webkit-scrollbar {
   width: 12px;
 }
@@ -1212,91 +1286,130 @@ body.editing .wg-add {
 }
 
 /* ============================================================
-   Finder 双栏（网关窗口）
+   网关窗口：实例列在上方
+   ------------------------------------------------------------
+   上一版是 Finder 双栏，实例挂在左侧竖排。窗口能拉成「很宽很矮」之后，
+   左侧 196px 会一直占着，内容被挤成一条缝；横向一排 chip 在矮窗口里更省
+   地方，也让「切实例」更像切标签而不是换目录。
    ============================================================ */
-.finder {
+.gwapp {
   display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
 }
-.sidebar {
-  width: 196px;
-  flex: 0 0 196px;
-  background: var(--side-bg);
-  border-right: 0.5px solid var(--line);
-  padding: 9px 8px;
-  overflow-y: auto;
-}
-.side-group {
-  margin-bottom: 13px;
-}
-.side-title {
+.gw-top {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 14px 8px;
+  background: var(--side-bg);
+  border-bottom: 0.5px solid var(--line);
+}
+.gw-top-l {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
   font-size: 11px;
   font-weight: 600;
   color: var(--t3);
-  padding: 0 8px 5px;
-}
-.side-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-size: 12.5px;
-  color: var(--t1);
-  cursor: default;
-  width: 100%;
-  border: none;
-  background: none;
-  text-align: left;
-  font-family: inherit;
-}
-.side-item:hover {
-  background: rgba(0, 0, 0, 0.045);
-}
-.side-item.active {
-  background: var(--accent);
-  color: #fff;
-}
-.side-item.active .cnt,
-.side-item.active .sub {
-  color: rgba(255, 255, 255, 0.78);
-}
-.side-item .ic {
-  width: 15px;
-  text-align: center;
-  opacity: 0.8;
-  flex: 0 0 15px;
-}
-.side-item .cnt {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--t3);
-  font-variant-numeric: tabular-nums;
-}
-.side-item .nm {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.side-item .sub {
+.gw-top-n {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--surface-sunken);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--t2);
+}
+.gw-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  /* 上下各留 2px：macOS 的覆盖式滚动条会压住 chip 的圆角 */
+  padding: 2px;
+  scrollbar-width: thin;
+}
+.gw-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--t1);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: default;
+  white-space: nowrap;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+.gw-tab:hover {
+  border-color: var(--brand-line);
+}
+.gw-tab.on {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(10, 132, 255, 0.35);
+}
+.gw-tab-nm {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gw-tab-code {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--t3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-[data-theme='dark'] .side-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+.gw-tab.on .gw-tab-code {
+  color: rgba(255, 255, 255, 0.82);
 }
-.finder-main {
-  flex: 1;
-  min-width: 0;
+/* 启用/停用的点要留着：它说的是实例状态，不是选中态 */
+.gw-tab.on .dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+.gw-tab-add {
+  border-style: dashed;
+  background: none;
+  color: var(--t3);
+}
+.gw-tab-add:hover {
+  color: var(--accent);
+  border-color: var(--brand-line);
+}
+.gw-tab-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--t3);
+}
+.gw-tab-hint.danger {
+  color: var(--danger);
+  cursor: pointer;
+}
+.gw-main {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   background: var(--body-bg);
 }
@@ -1949,6 +2062,124 @@ table.tbl tbody tr:hover td {
   transform: scale(1.14);
 }
 
+/* ---- 全局配置带：不属于任何一条链路，单独一条横带 ---- */
+.gg-global {
+  margin-top: 18px;
+  padding: 10px 11px 11px;
+  border-radius: 10px;
+  border: 0.5px dashed var(--line-strong);
+  background: var(--surface-sunken);
+}
+.gg-global-h {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+.gg-global-t {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t2);
+}
+.gg-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.gg-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.gg-global-warn {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 10px;
+}
+.gg-global-note {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--t3);
+}
+.gg-global-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.gg-gcard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-strong);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.gg-gcard:hover {
+  border-color: var(--brand-line);
+}
+.gg-gcard.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+.gg-gcard-t {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.gg-gcard-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t1);
+}
+.gg-gcard-badge {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 9px;
+}
+.gg-gcard-s {
+  font-size: 10px;
+  color: var(--t2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gg-gcard-n {
+  font-size: 9.5px;
+  color: var(--t3);
+}
+.gg-gcard.brand .gg-gcard-title {
+  color: var(--accent);
+}
+.gg-gcard.warn .gg-gcard-title {
+  color: var(--warn);
+}
+.gg-gcard.ok .gg-gcard-title {
+  color: var(--ok);
+}
+.gg-gcard.mute .gg-gcard-title {
+  color: var(--t3);
+}
+
 /* ---- 连线 ---- */
 .gg-edge {
   fill: none;
@@ -2106,6 +2337,39 @@ table.tbl tbody tr:hover td {
   background: var(--ok);
 }
 
+/* 路由的「行为」标记：只标偏离 gatex 默认值的字段，全标等于没标 */
+.gnode-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+.gnode-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 0.5px solid var(--line-strong);
+  background: var(--body-bg);
+  font-size: 9.5px;
+  line-height: 15px;
+  color: var(--t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gnode-tag.tls {
+  border-color: color-mix(in srgb, var(--ok) 34%, transparent);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.gnode-tag.bad {
+  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 /* 目标卡片按类型着色：一眼分清「落到 LB」和「直连 Host」 */
 .gnode-target.lb {
   background: var(--ok-soft);
@@ -2239,11 +2503,62 @@ table.tbl tbody tr:hover td {
   font-size: 11px;
   line-height: 1.5;
   color: var(--t2);
-  word-break: break-all;
+  /* 全局段的原始 TOML 有换行，不能让它被压成一行 */
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .ins-code.on {
   background: var(--brand-soft);
   color: var(--accent);
+}
+/* 全局段的键名很长（page-404-path），横排会挤掉值，改成上下两行 */
+.ins-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  font-size: 11px;
+}
+.ins-kv span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t3);
+}
+.ins-kv b {
+  font-weight: 500;
+  color: var(--t1);
+  word-break: break-all;
+}
+.ins-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+/* 「原始 JSON」默认收起：结构化摘要够用时不要占整屏，但一个字段都不藏 */
+.ins-raw {
+  font-size: 11px;
+  color: var(--t3);
+}
+.ins-raw > summary {
+  cursor: pointer;
+  padding: 3px 0;
+  color: var(--accent);
+  list-style: none;
+}
+.ins-raw > summary::-webkit-details-marker {
+  display: none;
+}
+.ins-raw > summary::before {
+  content: '▸ ';
+}
+.ins-raw[open] > summary::before {
+  content: '▾ ';
+}
+.ins-raw .ins-code {
+  margin-top: 4px;
 }
 .ins-link {
   display: flex;
@@ -2440,6 +2755,17 @@ table.tbl tbody tr:hover td {
     width: 100%;
     flex: 1 1 auto;
     max-height: none;
+  }
+}
+
+@container cfg (max-width: 900px) {
+  .gg-global-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container cfg (max-width: 620px) {
+  .gg-global-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

@@ -6,11 +6,24 @@
  * 在 260px 宽的栏里编辑只会互相折磨。启停也不在这里：它挂在卡片右上角。
  */
 import { useEffect, useState } from 'react'
-import { describeAddrs, describeBalancer, describeMatcher, describeTo, referencedBalancer, relativeTime } from '../../lib/format'
-import type { Balancer, Listener, Route } from '../../lib/types'
+import {
+  describeAddrs,
+  describeBalancer,
+  describeMatcher,
+  describeTo,
+  listenerTlsCount,
+  prettyJson,
+  referencedBalancer,
+  relativeTime,
+  routeFlags,
+  toShape,
+  unknownUriKeys,
+} from '../../lib/format'
+import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
 import { IconEdit, IconTrash } from '../../components/icons'
 import { Badge, cx } from '../../components/ui'
 import type { Selection } from './GatewayGraph'
+import { globalSections } from './global'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -59,6 +72,7 @@ function NameField({
 }
 
 export function Inspector({
+  gateway,
   selection,
   listeners,
   routes,
@@ -68,6 +82,7 @@ export function Inspector({
   onEdit,
   onDelete,
 }: {
+  gateway: Gateway
   selection: Selection | null
   listeners: Listener[]
   routes: Route[]
@@ -105,11 +120,58 @@ export function Inspector({
     )
   }
 
+  /* ---- 全局段：[static] / [upstream-error] / [ops] / [pingora-conf] / extra_toml ---- */
+  if (selection.kind === 'global') {
+    const sec = globalSections(gateway).find((s) => s.key === selection.key)
+    return (
+      <aside className="inspector">
+        <header className="ins-head">
+          <div className="ins-kind">全局配置</div>
+          <div className="ins-name">{sec?.title ?? selection.key}</div>
+          <p className="ins-note">{sec?.note}</p>
+        </header>
+
+        <section className="ins-sec">
+          <div className="ins-sec-t">字段（{sec?.rows.length ?? 0}）</div>
+          {sec?.rows.length ? (
+            sec.rows.map((r) => (
+              <div key={r.k} className="ins-kv">
+                <span>{r.k}</span>
+                <b>{r.v || '—'}</b>
+              </div>
+            ))
+          ) : (
+            <p className="ins-mute">库里没有配置这一段，渲染时用 gatex 的默认值。</p>
+          )}
+          {sec?.ignored && sec.ignored.length > 0 && (
+            <p className="ins-warn">
+              {sec.ignored.join('、')} 不是 gatex 认识的字段，渲染时会被静默忽略。
+            </p>
+          )}
+        </section>
+
+        {sec?.raw && (
+          <section className="ins-sec">
+            <div className="ins-sec-t">原始 TOML</div>
+            <div className="ins-code">{sec.raw}</div>
+          </section>
+        )}
+
+        <footer className="ins-actions">
+          <button className="btn btn-sm" onClick={() => onEdit(selection)}>
+            <IconEdit size={12} /> 编辑实例高级配置
+          </button>
+        </footer>
+      </aside>
+    )
+  }
+
   if (selection.kind === 'listener') {
     const listener = listeners.find((l) => l.id === selection.id)
     if (!listener) return <aside className="inspector" />
     const addrs = describeAddrs(listener.addrsJson)
     const own = routes.filter((r) => r.listenerId === listener.id)
+    const tlsCount = listenerTlsCount(listener.addrsJson)
     return (
       <aside className="inspector">
         <header className="ins-head">
@@ -134,6 +196,7 @@ export function Inspector({
         <section className="ins-sec">
           <div className="ins-sec-t">字段</div>
           <Row label="顺序">{listener.sortNo}</Row>
+          <Row label="TLS">{tlsCount > 0 ? `${tlsCount} 个地址绑证书` : '未启用'}</Row>
           <Row label="备注">{listener.remark || '—'}</Row>
           <Row label="路由">{own.length} 条</Row>
           <Row label="更新">{relativeTime(listener.updateMs)}</Row>
@@ -150,6 +213,11 @@ export function Inspector({
             </button>
           ))}
         </section>
+
+        <details className="ins-raw">
+          <summary>原始 JSON（addrs_json）</summary>
+          <div className="ins-code">{prettyJson(listener.addrsJson)}</div>
+        </details>
 
         <footer className="ins-actions">
           <button className="btn btn-sm" onClick={() => onEdit(selection)}>
@@ -171,6 +239,9 @@ export function Inspector({
     const index = siblings.findIndex((r) => r.id === route.id)
     const lbName = referencedBalancer(route.toJson)
     const lb = lbName ? balancers.find((b) => b.name === lbName) : undefined
+    const to = toShape(route.toJson)
+    const ignoredUri = unknownUriKeys(route.toJson)
+    const flags = routeFlags(route.toJson, route.logJson)
     return (
       <aside className="inspector">
         <header className="ins-head">
@@ -196,6 +267,33 @@ export function Inspector({
         </section>
 
         <section className="ins-sec">
+          <div className="ins-sec-t">转发行为</div>
+          <Row label="URI 改写">{to.uriType || 'Keep（不改）'}</Row>
+          <Row label="Host">
+            {to.preserveHost === false ? '改写为目标 Host' : '透传原 Host（默认）'}
+          </Row>
+          <Row label="CORS">{to.cors ? '已配置' : '未启用'}</Row>
+          <Row label="缓存头">{to.cacheControl || '—'}</Row>
+          <Row label="上游 TLS">{to.upstreamTls ? '已配置' : '未启用'}</Row>
+          <Row label="日志">{route.logJson?.trim() && route.logJson.trim() !== '{}' ? '单独配置' : '默认'}</Row>
+          {flags.length > 0 && (
+            <div className="ins-tags">
+              {flags.map((f) => (
+                <span key={f} className="gnode-tag">
+                  {f}
+                </span>
+              ))}
+            </div>
+          )}
+          {ignoredUri.length > 0 && (
+            <p className="ins-warn">
+              uri 里的 {ignoredUri.join('、')} 不是 gatex 认识的字段，渲染时会被静默丢掉——
+              线上生效的是「{to.uriType || 'Keep'}」，不是库里写的那个样子。
+            </p>
+          )}
+        </section>
+
+        <section className="ins-sec">
           <div className="ins-sec-t">字段</div>
           <Row label="所属监听器">
             {listener ? (
@@ -214,6 +312,13 @@ export function Inspector({
           <Row label="更新">{relativeTime(route.updateMs)}</Row>
         </section>
 
+        <details className="ins-raw">
+          <summary>原始 JSON（matcher / to / log）</summary>
+          <div className="ins-code">matcher = {prettyJson(route.matcherJson)}</div>
+          <div className="ins-code">to = {prettyJson(route.toJson)}</div>
+          <div className="ins-code">log = {prettyJson(route.logJson) || '（未配置）'}</div>
+        </details>
+
         <footer className="ins-actions">
           <button className="btn btn-sm" onClick={() => onEdit(selection)}>
             <IconEdit size={12} /> 编辑
@@ -231,6 +336,7 @@ export function Inspector({
     if (!balancer) return <aside className="inspector" />
     const info = describeBalancer(balancer.configJson)
     const usedBy = routes.filter((r) => referencedBalancer(r.toJson) === balancer.name)
+    const hc = info.healthCheck
     return (
       <aside className="inspector">
         <header className="ins-head">
@@ -245,8 +351,31 @@ export function Inspector({
         <section className="ins-sec">
           <div className="ins-sec-t">配置</div>
           <Row label="类型">{info.type}</Row>
-          <Row label="算法">{info.algorithm || '—'}</Row>
+          <Row label="算法">{info.algorithm || 'RoundRobin（默认）'}</Row>
+          <Row label="更新频率">{info.updateFrequency || '15s（默认）'}</Row>
           <Row label="备注">{balancer.remark || '—'}</Row>
+        </section>
+
+        <section className="ins-sec">
+          <div className="ins-sec-t">健康检查{hc.configured ? '' : ' · 渲染默认'}</div>
+          {hc.configured ? (
+            <>
+              <Row label="类型">{hc.kind || '—'}</Row>
+              <Row label="频率">{hc.frequency || '—'}</Row>
+              <Row label="超时">{hc.timeout || '—'}</Row>
+              <Row label="成功/失败">
+                {hc.consecutiveSuccess ?? '—'} / {hc.consecutiveFailure ?? '—'}
+              </Row>
+              <Row label="HTTP 路径">{hc.httpPath || '—'}</Row>
+              <Row label="HTTP Host">{hc.httpHost || '—'}</Row>
+              <Row label="并行">{hc.parallel === undefined ? '—' : hc.parallel ? '是' : '否'}</Row>
+            </>
+          ) : (
+            <p className="ins-mute">
+              库里没写 health-check；渲染时 gatex 会补默认检查（tcp / 每 5s / 超时 2s /
+              连续 3 次成功或失败切换状态）。完整值见「渲染预览」。
+            </p>
+          )}
         </section>
 
         <section className="ins-sec">
@@ -271,6 +400,11 @@ export function Inspector({
             </button>
           ))}
         </section>
+
+        <details className="ins-raw">
+          <summary>原始 JSON（config_json）</summary>
+          <div className="ins-code">{prettyJson(balancer.configJson)}</div>
+        </details>
 
         <footer className="ins-actions">
           <button className="btn btn-sm" onClick={() => onEdit(selection)}>

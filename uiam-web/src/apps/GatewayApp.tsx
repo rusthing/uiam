@@ -192,63 +192,54 @@ export function GatewayApp() {
     .slice(0, 2)
 
   return (
-    <div className="finder">
-      <aside className="sidebar">
-        <div className="side-group">
-          <div className="side-title">
-            <span>网关实例 {gateways.length > 0 && `· ${gateways.length}`}</span>
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ height: 18, padding: '0 4px' }}
-              onClick={() => setCreateOpen(true)}
-              title="新建网关实例"
-            >
-              <IconPlus size={12} />
-            </button>
-          </div>
+    <div className="gwapp">
+      {/* 实例列在上方而不是左侧：窗口可以拉得很矮很宽，左侧栏一竖就把内容挤成一条缝；
+          横向一排 chip 在矮窗口里更省地方，也让「切实例」这件事更像切标签 */}
+      <div className="gw-top">
+        <div className="gw-top-l">
+          <span className="gw-top-t">网关实例</span>
+          {gateways.length > 0 && <span className="gw-top-n">{gateways.length}</span>}
+        </div>
 
+        <div className="gw-tabs">
           {listLoading && gateways.length === 0 && (
-            <div className="side-item">
-              <Spinner size={12} /> <span className="sub">加载中…</span>
-            </div>
+            <span className="gw-tab-hint">
+              <Spinner size={11} /> 加载中…
+            </span>
           )}
           {listError && (
-            <button className="side-item" onClick={reloadList}>
-              <span className="ic">!</span>
-              <span className="nm" style={{ color: 'var(--danger)' }}>
-                列表加载失败，点此重试
-              </span>
+            <button className="gw-tab-hint danger" onClick={reloadList}>
+              ! 列表加载失败，点此重试
             </button>
+          )}
+          {!listLoading && !listError && gateways.length === 0 && (
+            <span className="gw-tab-hint">还没有实例</span>
           )}
 
           {gateways.map((g) => (
             <button
               key={g.id}
-              className={cx('side-item', g.id === gateway?.id && 'active')}
+              className={cx('gw-tab', g.id === gateway?.id && 'on')}
               onClick={() => selectGateway(g.id)}
-              title={`${g.code} · ${g.consulKey}`}
+              title={`${g.name} · ${g.code} · ${g.consulKey}`}
             >
-              <span className="ic">
-                <span className={cx('dot', g.enabled ? 'on' : 'off')} />
-              </span>
-              <span className="nm" style={{ flex: 1 }}>
-                {g.name}
-                <span className="sub" style={{ display: 'block' }}>
-                  {g.code}
-                </span>
-              </span>
+              <span className={cx('dot', g.enabled ? 'on' : 'off')} />
+              <span className="gw-tab-nm">{g.name}</span>
+              <span className="gw-tab-code">{g.code}</span>
             </button>
           ))}
 
-          {!listLoading && !listError && gateways.length === 0 && (
-            <div className="side-item">
-              <span className="sub">还没有实例，点上面的 + 新建</span>
-            </div>
-          )}
+          <button
+            className="gw-tab gw-tab-add"
+            onClick={() => setCreateOpen(true)}
+            title="新建网关实例"
+          >
+            <IconPlus size={12} /> 新建
+          </button>
         </div>
-      </aside>
+      </div>
 
-      <div className="finder-main">
+      <div className="gw-main">
         {!gateway ? (
           <div className="pane">
             {listLoading ? (
@@ -367,12 +358,17 @@ export function GatewayApp() {
             )}
             {tab === 'config' && (
               <ConfigTab
+                gateway={gateway}
                 gatewayId={gateway.id}
                 listeners={tree.listeners}
                 routes={tree.routes}
                 balancers={tree.balancers}
                 loading={tree.loading}
                 onChanged={tree.reload}
+                onEditGateway={() => setEditOpen(true)}
+                published={
+                  latest ? { version: latest.version, checksum: latest.checksum } : undefined
+                }
               />
             )}
             {tab === 'releases' && (

@@ -17,11 +17,20 @@
  * 目标节点落在第一条引用它的路由那一行。
  */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { describeAddrs, describeMatcher } from '../../lib/format'
-import type { Balancer, Listener, Route } from '../../lib/types'
+import {
+  describeAddrs,
+  describeBalancer,
+  describeMatcher,
+  listenerTlsCount,
+  parseJson,
+  routeFlags,
+  unknownUriKeys,
+} from '../../lib/format'
+import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
 import { IconAlert, IconPlus } from '../../components/icons'
 import { Switch } from '../../components/Switch'
 import { cx } from '../../components/ui'
+import type { GlobalKey } from './global'
 import {
   backendKey,
   buildGraph,
@@ -39,6 +48,7 @@ export type Selection =
   | { kind: 'route'; id: string }
   | { kind: 'balancer'; id: string }
   | { kind: 'backend'; balancerId: string; index: number }
+  | { kind: 'global'; key: GlobalKey }
 
 interface Box {
   x: number
@@ -98,6 +108,7 @@ function ListenerNode({
 }) {
   const { listener } = lane
   const addrs = describeAddrs(listener.addrsJson)
+  const tlsCount = listenerTlsCount(listener.addrsJson)
   return (
     <Card
       nodeKey={listenerKey(listener.id)}
@@ -109,6 +120,11 @@ function ListenerNode({
         <span className={cx('gnode-kind', listener.kind === 1 ? 'http' : 'tcp')}>
           {listener.kind === 1 ? 'HTTP' : 'TCP'}
         </span>
+        {tlsCount > 0 && (
+          <span className="gnode-tag tls" title={`${tlsCount} 个地址绑了 TLS 证书`}>
+            TLS ×{tlsCount}
+          </span>
+        )}
         <span className="gnode-n">{lane.routes.length} 条</span>
         <Switch on={listener.enabled} onChange={onToggle} label="启用监听器" />
       </div>
@@ -133,6 +149,8 @@ function RouteNode({
   onSelect: () => void
   onToggle: () => void
 }) {
+  const flags = routeFlags(route.toJson, route.logJson)
+  const ignored = unknownUriKeys(route.toJson)
   return (
     <Card
       nodeKey={routeKey(route.id)}
@@ -151,6 +169,23 @@ function RouteNode({
         <Switch on={route.enabled} onChange={onToggle} label="启用路由" />
       </div>
       <div className="gnode-m mono">{describeMatcher(route.matcherJson)}</div>
+      {(flags.length > 0 || ignored.length > 0) && (
+        <div className="gnode-tags">
+          {flags.map((f) => (
+            <span key={f} className="gnode-tag" title="转发时的行为，偏离了 gatex 默认值">
+              {f}
+            </span>
+          ))}
+          {ignored.length > 0 && (
+            <span
+              className="gnode-tag bad"
+              title="uri 里这些键 gatex 不认识，渲染时会被静默丢掉"
+            >
+              忽略 {ignored.join(', ')}
+            </span>
+          )}
+        </div>
+      )}
     </Card>
   )
 }
@@ -160,14 +195,18 @@ function TargetNode({
   selected,
   onSelect,
   onToggle,
+  staticRoot,
 }: {
   slot: TargetSlot
   selected: boolean
   onSelect: () => void
   onToggle: () => void
+  staticRoot?: string
 }) {
   const { title, sub } = targetSummary(slot)
   const isEntity = slot.kind === 'lb' && slot.balancer
+  const info = slot.balancer ? describeBalancer(slot.balancer.configJson) : undefined
+  const hc = info?.healthCheck
   return (
     <Card
       nodeKey={slot.key}
@@ -190,6 +229,15 @@ function TargetNode({
         )}
       </div>
       <div className="gnode-m">{sub}</div>
+      {slot.kind === 'lb' && hc && (
+        <div className="gnode-m">
+          {hc.configured
+            ? `健康检查 ${hc.kind ?? '?'} · ${hc.frequency ?? '—'}`
+            : '健康检查 · 渲染默认'}
+          {info?.updateFrequency ? ` · ${info.updateFrequency} 更新` : ''}
+        </div>
+      )}
+      {slot.kind === 'static' && staticRoot && <div className="gnode-m mono">{staticRoot}</div>}
       {slot.kind === 'lb' && slot.refs > 1 && (
         <div className="gnode-sub">{slot.refs} 条路由共用</div>
       )}
@@ -226,6 +274,7 @@ function BackendNode({
 /* ---------------------------------------------------------------- 主体 */
 
 export function GatewayGraph({
+  gateway,
   listeners,
   routes,
   balancers,
@@ -238,6 +287,7 @@ export function GatewayGraph({
   onAddListener,
   onAddBalancer,
 }: {
+  gateway: Gateway
   listeners: Listener[]
   routes: Route[]
   balancers: Balancer[]
@@ -251,6 +301,11 @@ export function GatewayGraph({
   onAddBalancer: () => void
 }) {
   const model = useMemo(() => buildGraph(listeners, routes, balancers), [listeners, routes, balancers])
+  const staticRoot = useMemo(() => {
+    const d = parseJson(gateway.staticJson)
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return ''
+    return String((d as Record<string, unknown>)['root-dir'] ?? '')
+  }, [gateway.staticJson])
   const wrapRef = useRef<HTMLDivElement>(null)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -446,6 +501,7 @@ export function GatewayGraph({
                   )
                 }
                 onToggle={() => slot.balancer && onToggleBalancer(slot.balancer)}
+                staticRoot={staticRoot}
               />
             </div>
           ))}

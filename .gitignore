@@ -15,3 +15,6 @@ uiam-web/tsconfig.tsbuildinfo
 
 Cargo.lock
 .DS_Store
+
+# 本地验证截图等交付物，不进版本控制
+deliverables/

@@ -1,15 +1,27 @@
 /**
- * 窗口框：交通灯 + 可拖拽标题栏 + 内容区。
+ * 窗口框：交通灯 + 可拖拽标题栏 + 八向改大小 + 内容区。
  *
  * 拖动用 Pointer Events 而不是 mousemove：指针捕获之后即使鼠标划过 iframe 或
  * 窗口外也不会丢事件，这是原型的 `makeDraggable` 想做但做不到的事。起始位置在
  * `pointerdown` 时冻结在 ref 里，所以拖动过程中 `win.x` 一直在变也不会自乘。
+ *
+ * 改大小同理，但多一件事：**钳制要按方向做**。往左拖时宽度变小、x 要跟着右移；
+ * 碰到最小宽度后 x 就不能再动，否则窗口会「一边缩小一边往右跑」。所以下限判断
+ * 在这里做，`resizeWin` 只负责落值。
  */
 import { useRef, type ReactNode } from 'react'
 import { APP_MAP } from '../apps/meta'
 import { AppIcon } from '../apps/AppIcon'
 import { useShell, type WinState } from './state'
 import { cx } from '../components/ui'
+
+const MIN_W = 460
+const MIN_H = 280
+/** 标题栏不能钻到菜单栏底下 */
+const MIN_Y = 26
+
+type Dir = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+const DIRS: Dir[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
 const TL_CLOSE = (
   <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
@@ -52,6 +64,59 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
   const onBarPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!drag.current) return
     drag.current = null
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }
+
+  const resize = useRef<{
+    dir: Dir
+    sx: number
+    sy: number
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
+
+  const onResizeDown = (dir: Dir) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    // 别让把手上的按下冒泡到窗口 / 标题栏，否则会顺手触发一次拖动或聚焦抬升
+    e.stopPropagation()
+    e.preventDefault()
+    if (win.max) return
+    shell.focusWin(win.id)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    resize.current = { dir, sx: e.clientX, sy: e.clientY, x: win.x, y: win.y, w: win.w, h: win.h }
+  }
+
+  const onResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = resize.current
+    if (!r) return
+    const dx = e.clientX - r.sx
+    const dy = e.clientY - r.sy
+    let { x, y, w, h } = r
+    if (r.dir.includes('e')) w = Math.max(MIN_W, r.w + dx)
+    if (r.dir.includes('s')) h = Math.max(MIN_H, r.h + dy)
+    // 往左/上拖：先按新宽度反推 x，再钳制；顺序反了窗口会一边缩小一边漂
+    if (r.dir.includes('w')) {
+      w = Math.max(MIN_W, r.w - dx)
+      x = r.x + r.w - w
+    }
+    if (r.dir.includes('n')) {
+      h = Math.max(MIN_H, r.h - dy)
+      y = r.y + r.h - h
+      if (y < MIN_Y) {
+        h -= MIN_Y - y
+        y = MIN_Y
+      }
+    }
+    shell.resizeWin(win.id, { x, y, w, h })
+  }
+
+  const onResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resize.current) return
+    resize.current = null
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId)
     }
@@ -119,6 +184,20 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
         <div className="win-bar-extra" />
       </div>
       <div className="win-body">{children}</div>
+
+      {/* 八个把手贴着窗口边缘，最外 6px 是热区；最大化时不给，和 macOS 一致 */}
+      {!win.max &&
+        DIRS.map((dir) => (
+          <div
+            key={dir}
+            className={`rz rz-${dir}`}
+            onPointerDown={onResizeDown(dir)}
+            onPointerMove={onResizeMove}
+            onPointerUp={onResizeUp}
+            onPointerCancel={onResizeUp}
+            aria-hidden="true"
+          />
+        ))}
     </div>
   )
 }

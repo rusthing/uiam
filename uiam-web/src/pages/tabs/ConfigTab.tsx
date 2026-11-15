@@ -10,7 +10,7 @@
 import { useMemo, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { asBalancerPayload, asListenerPayload, asRoutePayload } from '../../lib/payload'
-import type { Balancer, Listener, Route } from '../../lib/types'
+import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
 import { BalancerForm } from '../../components/BalancerForm'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ListenerForm } from '../../components/ListenerForm'
@@ -18,6 +18,7 @@ import { RouteForm } from '../../components/RouteForm'
 import { useToast } from '../../components/Toast'
 import { cx } from '../../components/ui'
 import { GatewayGraph, type Selection } from '../graph/GatewayGraph'
+import { GlobalBand } from '../graph/GlobalBand'
 import { Inspector } from '../graph/Inspector'
 import { BalancersTab } from './BalancersTab'
 import { ListenersTab } from './ListenersTab'
@@ -26,19 +27,25 @@ import { RoutesTab } from './RoutesTab'
 type View = 'graph' | 'table'
 
 export function ConfigTab({
+  gateway,
   gatewayId,
   listeners,
   routes,
   balancers,
   loading,
   onChanged,
+  onEditGateway,
+  published,
 }: {
+  gateway: Gateway
   gatewayId: string
   listeners: Listener[]
   routes: Route[]
   balancers: Balancer[]
   loading: boolean
   onChanged: () => void
+  onEditGateway: () => void
+  published?: { version: number; checksum: string }
 }) {
   const toast = useToast()
   const [view, setView] = useState<View>('graph')
@@ -122,7 +129,9 @@ export function ConfigTab({
   }
 
   const edit = (sel: Selection) => {
-    if (sel.kind === 'listener') {
+    if (sel.kind === 'global') {
+      onEditGateway()
+    } else if (sel.kind === 'listener') {
       const listener = listeners.find((l) => l.id === sel.id) ?? null
       setListenerForm({ open: true, editing: listener })
     } else if (sel.kind === 'route') {
@@ -154,6 +163,9 @@ export function ConfigTab({
   }
 
   const removeText = (sel: Selection) => {
+    if (sel.kind === 'global') {
+      return <>全局配置属于实例本身，不能单独删除；要清空请点右上「编辑」改高级配置。</>
+    }
     if (sel.kind === 'listener') {
       const l = listeners.find((x) => x.id === sel.id)
       const n = routes.filter((r) => r.listenerId === sel.id).length
@@ -238,6 +250,7 @@ export function ConfigTab({
               </div>
             ) : (
               <GatewayGraph
+                gateway={gateway}
                 listeners={listeners}
                 routes={routes}
                 balancers={balancers}
@@ -253,9 +266,18 @@ export function ConfigTab({
                 onAddBalancer={() => setBalancerForm({ open: true, editing: null })}
               />
             )}
+
+            {/* 全局段不属于任何一条链路，单独一条带；空配置时也要能看见 */}
+            <GlobalBand
+              gateway={gateway}
+              selected={selection}
+              onSelect={setSelection}
+              published={published}
+            />
           </div>
 
           <Inspector
+            gateway={gateway}
             selection={selection}
             listeners={listeners}
             routes={routes}

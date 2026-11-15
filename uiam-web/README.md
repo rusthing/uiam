@@ -33,13 +33,13 @@ npm run typecheck
 | 组件网格 | 4 列 × 132px 行高，8 个组件，可拖拽排序 / 切尺寸 / 移除 / 添加，布局存 localStorage |
 | Dock | 启动台 + 固定应用 + 临时应用（开着但没固定）+ 废纸篓；右键可固定/取消、关窗口 |
 | 启动台 | 全屏毛玻璃 + 搜索（匹配名字与描述） |
-| 窗口 | 交通灯（关/最小化/缩放）、标题栏拖动、双击标题栏最大化、点 Dock 还原 |
+| 窗口 | 交通灯（关/最小化/缩放）、标题栏拖动、双击标题栏最大化、点 Dock 还原、**八向边缘拖拽改大小**（下限 460×280，最大化时禁用） |
 
 窗口里的应用：
 
 | 应用 | 内容 |
 |---|---|
-| 网关配置 | Finder 双栏：左实例列表（含新建），右「概览 / 配置 / 发布历史」分段标签；配置页默认是**整条链路的图**，右上角可切表格 |
+| 网关配置 | **顶部一排实例 chip**（横向可滚，含新建）+ 下方整宽内容区；「概览 / 配置 / 发布历史」分段标签；配置页默认是**整条链路的图**，右上角可切表格 |
 | 接口速查 | uiam-svr 全部接口的路径、方法与说明，可搜索 |
 | 系统设置 | 外观、操作者 ID、桌面布局、窗口列表 |
 | 关于 uiam | 版本、生效路径、两条会咬人的约束 |
@@ -87,6 +87,28 @@ npm run typecheck
   字段仍然走弹窗——在 268px 宽的栏里编辑 JSON 只会互相折磨。
 - **表格视图没删**：十几条路由横着扫比看图快。两种视图共用 `ListenerForm` /
   `RouteForm` / `BalancerForm` 和同一个 `Switch`，不会出现「图里能停用、表里停不了」。
+
+### 一张图要盖住线上 TOML 的每一段
+
+对照 Consul KV 里真实的配置（`dev/gatex-*.toml`），除了链路本身还有四段顶层配置，
+它们不挂在任何一条路由上，画进链路里反而误导，所以图底部单列一条**「全局」带**：
+`[static]` / `[upstream-error]` / `[ops]` / `[pingora-conf]`（来自 `extra_toml`）/ 其余附加 TOML。
+每块可点，属性栏列出全部字段与原始 TOML；带子标题还显示**已发布版本与 checksum**。
+
+链路节点上也补齐了线上有、图里原先没有的字段：
+
+- 路由卡片只标**偏离 gatex 默认值**的行为：`去前缀` / `加前缀` / `路径替换` /
+  `改写 Host` / `CORS` / `缓存头` / `上游 TLS` / `独立日志`（默认 `uri=Keep`、
+  `preserve-host=true`，全标出来等于没标）
+- LB 卡片补 `健康检查` 摘要与 `update-frequency`；Static 卡片补 `static.root-dir`；
+  监听器卡片补 TLS 地址数
+- 属性栏对每种实体都有一条**「原始 JSON」**（默认收起），一个字段都不藏
+
+⚠️ **界面必须说出「库里写了但线上不生效」的字段**。已经踩到两个：
+`upstreamErrorJson` 里的 `content-type`（`UpstreamErrorConfig` 只有
+`enabled/status/expose-detail`）、`to.uri` 里的 `parts`（gatex 的 `StripPrefix`
+是 unit variant）。serde 会静默丢掉它们，所以全局带显示「N 个键不生效」，
+路由卡片显示红色「忽略 parts」，属性栏写明线上实际生效的是什么。
 
 ### 连线为什么是量出来的
 
@@ -140,8 +162,10 @@ src/
 └── pages/
     ├── graph/       配置图
     │   ├── model.ts       三张表 → 节点/连线/行号（含汇聚去重、遮蔽判定）
+    │   ├── global.ts      全局段（static / upstream-error / ops / pingora / extra_toml）
     │   ├── GatewayGraph.tsx 四列网格 + 测量后 SVG 贝塞尔连线 + 出线上的「+」
-    │   └── Inspector.tsx  右侧属性栏（四种选中态 + 就地改名）
+    │   ├── GlobalBand.tsx  图底全局带 + 已发布版本
+    │   └── Inspector.tsx  右侧属性栏（五种选中态 + 就地改名 + 原始 JSON）
     └── tabs/
         ├── ConfigTab.tsx  编排：图形/表格切换、启停、表单、删除确认
         └── ListenersTab / RoutesTab / BalancersTab / ReleasesTab / OverviewTab
