@@ -1740,6 +1740,394 @@ table.tbl tbody tr:hover td {
 }
 
 /* ============================================================
+   路由拓扑（泳道管道图）
+   ------------------------------------------------------------
+   三列不是排版：入口 → 有序路由链 → 目标。序号徽标串在一条竖脊上，
+   把 first-match-wins 的顺序变成看得见的上下位置——这是表格给不了的信息。
+   ============================================================ */
+.topo {
+  padding-bottom: 4px;
+}
+.topo-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.topo-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--t3);
+}
+.topo-stats b {
+  font-weight: 600;
+  color: var(--t1);
+  font-variant-numeric: tabular-nums;
+}
+.topo-stats .sep {
+  opacity: 0.45;
+}
+.topo-stats .warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+}
+.topo-stats .mute {
+  color: var(--t3);
+}
+.topo-bar .seg {
+  margin: 0 0 0 auto;
+}
+.topo-hint {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--t3);
+}
+.topo-hint b {
+  font-weight: 600;
+  color: var(--t2);
+}
+.topo-hint .busy {
+  color: var(--accent);
+}
+.topo-lanes {
+  display: grid;
+  gap: 12px;
+}
+.topo-legend {
+  margin: 12px 0 2px;
+  font-size: 11px;
+  color: var(--t3);
+}
+
+.lane {
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+[data-theme='dark'] .lane {
+  background: rgba(255, 255, 255, 0.035);
+}
+.lane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--line-soft);
+  background: var(--side-bg);
+}
+.lane-kind {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--brand-soft);
+  color: var(--accent);
+}
+.lane-kind.tcp {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.lane-addr {
+  font-size: 11.5px;
+  color: var(--t1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lane-remark {
+  font-size: 11px;
+  color: var(--t3);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lane-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lane-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.lane-tools .btn {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.lane-flow {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+/* 竖脊：把「顺序」画成一条线，序号徽标骑在上面 */
+.lane-flow::before {
+  content: '';
+  position: absolute;
+  left: 26px;
+  top: 20px;
+  bottom: 22px;
+  width: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    var(--brand-line) 0%,
+    var(--line-strong) 14%,
+    var(--line-strong) 82%,
+    transparent 100%
+  );
+}
+.lane-empty {
+  grid-column: 1 / -1;
+  padding: 8px 4px 8px 30px;
+  font-size: 11.5px;
+  color: var(--t3);
+}
+
+.flow-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 28px minmax(0, 200px);
+  align-items: center;
+  column-gap: 8px;
+  border-radius: 9px;
+}
+.flow-row.off {
+  opacity: 0.62;
+}
+.flow-n {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--t2);
+  background: var(--surface-strong);
+  border: 1px solid var(--line-strong);
+}
+[data-theme='dark'] .flow-n {
+  background: #2a2a2e;
+}
+/* 第 1 位是真正会命中的那条，给它实心 */
+.lane-flow > .flow-row:first-child .flow-n {
+  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.rnode {
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 0.5px solid var(--line);
+  background: var(--body-bg);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.rnode:hover {
+  border-color: var(--brand-line);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+.rnode-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.rnode-t {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rnode-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.rnode:hover .rnode-tools {
+  opacity: 1;
+}
+.rnode-tools .btn {
+  height: 18px;
+  padding: 0 4px;
+}
+.rnode-tools .btn.danger:hover {
+  color: var(--danger);
+}
+.rnode-b {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+}
+.rnode-k {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--t3);
+  line-height: 1.75;
+}
+.rnode-v {
+  font-size: 11px;
+  color: var(--t2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rnode-warn {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+/* 宽卡片右侧的零碎信息：图里显示的是「位置」，这两个是「位置之外还该知道的」 */
+.rnode-meta {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.rnode-meta span {
+  font-size: 9.5px;
+  line-height: 1.6;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+  color: var(--t3);
+}
+
+.wire {
+  justify-self: center;
+  color: color-mix(in srgb, var(--t3) 78%, transparent);
+}
+.wire.bad {
+  color: var(--danger);
+}
+
+/* 拖动改序：被拖的那条虚化，落点画一条蓝线 */
+.flow-row.dragging {
+  opacity: 0.4;
+}
+.flow-row.dragging .rnode {
+  border-style: dashed;
+}
+.flow-row.drop-before::before,
+.flow-row.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 30px;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.flow-row.drop-before::before {
+  top: -5px;
+}
+.flow-row.drop-after::after {
+  bottom: -5px;
+}
+
+.tnode {
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 9px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-sunken);
+}
+.tnode.bad {
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  background: var(--danger-soft);
+}
+.tnode.off {
+  opacity: 0.6;
+}
+.tnode-k {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.tnode-kind {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tnode-kind.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.tnode-t {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tnode-s {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--t3);
+}
+.tnode-b {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.bk {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 0.5px solid var(--line);
+  background: var(--body-bg);
+  color: var(--t2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bk.more {
+  color: var(--t3);
+}
+
+/* ============================================================
    主题切换：View Transitions 圆形扩散
    ============================================================ */
 ::view-transition-group(root) {

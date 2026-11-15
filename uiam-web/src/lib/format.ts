@@ -120,6 +120,41 @@ export function describeMatcher(matcherJson?: string | null): string {
   }
 }
 
+/**
+ * 取 matcher 的类型与主路径（Prefix / Exact 的第一条 urn）。
+ *
+ * 单独抽出来是因为「遮蔽」判断需要路径本身，而不是 `前缀 /api` 这种给人看的字符串——
+ * 拿字符串做前缀比较会把 `前缀 /api` 误判成 `精确 /health` 的遮蔽者。
+ */
+export function matcherShape(matcherJson?: string | null): { type: string; path?: string } {
+  const d = asDict(parseJson(matcherJson))
+  if (!d) return { type: '' }
+  const type = str(d.type)
+  if (type !== 'Prefix' && type !== 'Exact') return { type }
+  const first = asArray(d.urn ?? d.url)[0]
+  const fd = asDict(first)
+  const path = fd ? str(fd.url) : str(first)
+  return { type, path: path || undefined }
+}
+
+/**
+ * 上一条是否会吃掉这一条。
+ *
+ * gatex 是 first-match-wins，所以真正危险的只有一种：**前一条是 Prefix，且它的前缀
+ * 覆盖了当前这条的路径**。`Prefix /` 覆盖一切（含 Host / Service / Default），
+ * 其余前缀只在当前这条也按路径匹配时才有意义。
+ */
+export function shadowedBy(prevMatcher?: string | null, currentMatcher?: string | null): boolean {
+  const a = matcherShape(prevMatcher)
+  const b = matcherShape(currentMatcher)
+  if (a.type !== 'Prefix' || !a.path) return false
+  if (a.path === '/') return true
+  if (b.type !== 'Prefix' && b.type !== 'Exact') return false
+  if (!b.path) return false
+  const prefix = a.path.endsWith('/') ? a.path.slice(0, -1) : a.path
+  return b.path === prefix || b.path.startsWith(`${prefix}/`)
+}
+
 /** 转发目标摘要 */
 export function describeTo(toJson?: string | null): string {
   const d = asDict(parseJson(toJson))
@@ -134,6 +169,28 @@ export function describeTo(toJson?: string | null): string {
       return d.spa ? 'Static（SPA）' : 'Static'
     default:
       return type || '（未指定类型）'
+  }
+}
+
+/**
+ * 取 to 的关键字段。`describeTo` 只产出给人看的字符串，图形视图要拿这些字段
+ * 去查负载均衡器、标 TLS/SPA 之类的状态，所以单开一个结构化版本。
+ */
+export function toShape(toJson?: string | null): {
+  type: string
+  addr?: string
+  name?: string
+  spa?: boolean
+  preserveHost?: boolean
+} {
+  const d = asDict(parseJson(toJson))
+  if (!d) return { type: '' }
+  return {
+    type: str(d.type),
+    addr: str(d.addr) || undefined,
+    name: str(d.name) || undefined,
+    spa: d.spa === true || undefined,
+    preserveHost: (d['preserve-host'] ?? d.preserveHost) === true || undefined,
   }
 }
 

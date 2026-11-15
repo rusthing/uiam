@@ -1,53 +1,22 @@
 /**
- * 路由：按监听器分组，组内按 sort_no 排序。
+ * 路由表：按监听器分组，组内按 sort_no 排序。
  *
  * 这里最容易被忽略的事实是**顺序即语义**——同一监听器下前面的先匹配，
  * 一条 `Prefix /` 放在前面会把后面所有规则吃掉。所以列表里把 sort_no 摆在
- * 第一列，并在有遮蔽风险时给提示（前一条是 `/` 而后一条不是）。
+ * 第一列，并用 `shadowedBy` 判断「上一条是否真的覆盖了这条的路径」。
+ *
+ * 想更直观地改顺序请用拓扑图（同一个 tab 的「图形」视图），它把顺序画成纵向位置；
+ * 这个表格保留下来，是因为十几条路由横着扫比看图快。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
-import { describeAddrs, describeMatcher, describeTo, parseJson } from '../../lib/format'
-import type { Listener, Route, RoutePayload } from '../../lib/types'
+import { describeAddrs, describeMatcher, describeTo, shadowedBy } from '../../lib/format'
+import type { Listener, Route } from '../../lib/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { JsonEditor } from '../../components/JsonEditor'
+import { RouteForm } from '../../components/RouteForm'
 import { useToast } from '../../components/Toast'
-import { Badge, Empty, Field, Modal, Section, Spinner, Toggle } from '../../components/ui'
+import { Badge, Empty, Section, Spinner } from '../../components/ui'
 import { IconEdit, IconPlus, IconTrash } from '../../components/icons'
-
-const MATCHER_TEMPLATES: Record<string, string> = {
-  Prefix: '{"type":"Prefix","urn":["/api"]}',
-  Exact: '{"type":"Exact","urn":["/health"]}',
-  Host: '{"type":"Host","addr":"example.com"}',
-  Regex: '{"type":"Regex","regex":"^/v[0-9]+/"}',
-  Service: '{"type":"Service","svc-name":["adm-svr"]}',
-  Default: '{"type":"Default"}',
-}
-
-const TO_TEMPLATES: Record<string, string> = {
-  LoadBalancer: '{"type":"LoadBalancer","name":"","preserve-host":true}',
-  Host: '{"type":"Host","addr":"127.0.0.1:8080","preserve-host":true}',
-  Static: '{"type":"Static","spa":true}',
-}
-
-function typeOf(json: string): string {
-  const parsed = parseJson(json)
-  if (parsed && typeof parsed === 'object' && 'type' in parsed) {
-    const t = (parsed as Record<string, unknown>).type
-    if (typeof t === 'string') return t
-  }
-  return ''
-}
-
-interface FormState {
-  listenerId: string
-  sortNo: number
-  name: string
-  matcherJson: string
-  toJson: string
-  logJson: string
-  enabled: boolean
-}
 
 export function RoutesTab({
   listeners,
@@ -63,16 +32,7 @@ export function RoutesTab({
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Route | null>(null)
-  const [form, setForm] = useState<FormState>({
-    listenerId: '',
-    sortNo: 1,
-    name: '',
-    matcherJson: MATCHER_TEMPLATES.Prefix,
-    toJson: TO_TEMPLATES.LoadBalancer,
-    logJson: '',
-    enabled: true,
-  })
-  const [saving, setSaving] = useState(false)
+  const [presetListenerId, setPresetListenerId] = useState<string | undefined>(undefined)
   const [removing, setRemoving] = useState<Route | null>(null)
 
   const grouped = useMemo(() => {
@@ -84,68 +44,16 @@ export function RoutesTab({
     }))
   }, [listeners, routes])
 
-  useEffect(() => {
-    if (!open) return
-    if (editing) {
-      setForm({
-        listenerId: editing.listenerId,
-        sortNo: editing.sortNo,
-        name: editing.name,
-        matcherJson: editing.matcherJson,
-        toJson: editing.toJson,
-        logJson: editing.logJson ?? '',
-        enabled: editing.enabled,
-      })
-    }
-  }, [open, editing])
-
   const openCreate = (listenerId: string) => {
-    const siblings = routes.filter((r) => r.listenerId === listenerId)
     setEditing(null)
-    setForm({
-      listenerId,
-      sortNo: siblings.length + 1,
-      name: '',
-      matcherJson: MATCHER_TEMPLATES.Prefix,
-      toJson: TO_TEMPLATES.LoadBalancer,
-      logJson: '',
-      enabled: true,
-    })
+    setPresetListenerId(listenerId)
     setOpen(true)
   }
 
   const openEdit = (route: Route) => {
     setEditing(route)
+    setPresetListenerId(undefined)
     setOpen(true)
-  }
-
-  const save = async () => {
-    const payload: RoutePayload = {
-      id: editing?.id,
-      listenerId: form.listenerId,
-      sortNo: form.sortNo,
-      name: form.name.trim(),
-      matcherJson: form.matcherJson,
-      toJson: form.toJson,
-      logJson: form.logJson.trim() || null,
-      enabled: form.enabled,
-    }
-    if (!payload.name) {
-      toast.error('路由名称不能为空')
-      return
-    }
-    setSaving(true)
-    try {
-      if (editing) await api.route.update(payload)
-      else await api.route.add(payload)
-      toast.success(editing ? '路由已保存' : '路由已创建')
-      setOpen(false)
-      onChanged()
-    } catch (e) {
-      toast.error((e as ApiError).message)
-    } finally {
-      setSaving(false)
-    }
   }
 
   const remove = async () => {
@@ -221,12 +129,12 @@ export function RoutesTab({
                   <tbody>
                     {rows.map((route, index) => {
                       const prev = index > 0 ? rows[index - 1] : undefined
-                      const shadowed =
-                        prev !== undefined &&
-                        prev.enabled &&
-                        route.enabled &&
-                        describeMatcher(prev.matcherJson).startsWith('前缀 /') &&
-                        !describeMatcher(route.matcherJson).startsWith('前缀 /')
+                      const shadowed = Boolean(
+                        prev &&
+                          prev.enabled &&
+                          route.enabled &&
+                          shadowedBy(prev.matcherJson, route.matcherJson),
+                      )
                       return (
                         <tr key={route.id}>
                           <td className="mono text-ink-mute">{route.sortNo}</td>
@@ -238,7 +146,7 @@ export function RoutesTab({
                               </span>
                               {shadowed && (
                                 <span className="text-[11px] text-warn">
-                                  前一条是「前缀 /」，会吃掉这条
+                                  上一条「{describeMatcher(prev?.matcherJson)}」会吃掉这条
                                 </span>
                               )}
                             </div>
@@ -282,121 +190,15 @@ export function RoutesTab({
         ))}
       </div>
 
-      <Modal
+      <RouteForm
         open={open}
+        listeners={listeners}
+        routes={routes}
+        route={editing}
+        presetListenerId={presetListenerId}
         onClose={() => setOpen(false)}
-        width={760}
-        title={editing ? '编辑路由' : '新建路由'}
-        description="matcher / to 是 gatex 的配置类型，直接写 JSON；type 区分大小写。"
-        footer={
-          <>
-            <button className="btn" onClick={() => setOpen(false)} disabled={saving}>
-              取消
-            </button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? '保存中…' : '保存'}
-            </button>
-          </>
-        }
-      >
-        <div className="grid gap-3.5">
-          <div className="grid gap-3.5 sm:grid-cols-3">
-            <Field label="所属监听器">
-              <select
-                className="select"
-                value={form.listenerId}
-                onChange={(e) => setForm((f) => ({ ...f, listenerId: e.target.value }))}
-              >
-                {listeners.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.kind === 1 ? 'HTTP' : 'TCP'} · {describeAddrs(l.addrsJson).join(',') || l.id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="顺序" hint="小的先匹配">
-              <input
-                className="input"
-                type="number"
-                value={form.sortNo}
-                onChange={(e) => setForm((f) => ({ ...f, sortNo: Number(e.target.value) }))}
-              />
-            </Field>
-            <Field label="名称" required>
-              <input
-                className="input"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="adm 后台接口"
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field label="匹配条件（matcher_json）">
-              <select
-                className="select mb-1.5"
-                value={typeOf(form.matcherJson)}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, matcherJson: MATCHER_TEMPLATES[e.target.value] ?? '' }))
-                }
-              >
-                <option value="">（自定义）</option>
-                {Object.keys(MATCHER_TEMPLATES).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <JsonEditor
-                value={form.matcherJson}
-                onChange={(v) => setForm((f) => ({ ...f, matcherJson: v }))}
-                rows={5}
-              />
-            </Field>
-            <Field label="转发目标（to_json）">
-              <select
-                className="select mb-1.5"
-                value={typeOf(form.toJson)}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, toJson: TO_TEMPLATES[e.target.value] ?? '' }))
-                }
-              >
-                <option value="">（自定义）</option>
-                {Object.keys(TO_TEMPLATES).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <JsonEditor
-                value={form.toJson}
-                onChange={(v) => setForm((f) => ({ ...f, toJson: v }))}
-                rows={5}
-              />
-            </Field>
-          </div>
-
-          <Field label="日志配置（log_json）" hint="留空表示用默认（不额外记录）">
-            <JsonEditor
-              value={form.logJson}
-              onChange={(v) => setForm((f) => ({ ...f, logJson: v }))}
-              rows={3}
-              placeholder='{"request":{},"response":{}}'
-              templates={[
-                { label: '记录请求+响应', json: '{"request":{},"response":{}}' },
-                { label: '只记请求', json: '{"request":{}}' },
-              ]}
-            />
-          </Field>
-
-          <Toggle
-            checked={form.enabled}
-            onChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-            label="启用（停用的路由不参与渲染）"
-          />
-        </div>
-      </Modal>
+        onSaved={onChanged}
+      />
 
       <ConfirmDialog
         open={Boolean(removing)}

@@ -36,7 +36,7 @@ import {
 } from '../components/icons'
 import { OverviewTab } from '../pages/tabs/OverviewTab'
 import { ListenersTab } from '../pages/tabs/ListenersTab'
-import { RoutesTab } from '../pages/tabs/RoutesTab'
+import { TopologyTab } from '../pages/tabs/TopologyTab'
 import { BalancersTab } from '../pages/tabs/BalancersTab'
 import { ReleasesTab } from '../pages/tabs/ReleasesTab'
 import { getSelection, selectGateway, subscribeSelection } from './selection'
@@ -46,7 +46,8 @@ type TabKey = 'overview' | 'listeners' | 'routes' | 'balancers' | 'releases'
 const TABS: Array<{ key: TabKey; label: string; icon: typeof IconServer }> = [
   { key: 'overview', label: '概览', icon: IconServer },
   { key: 'listeners', label: '监听器', icon: IconServer },
-  { key: 'routes', label: '路由', icon: IconRoute },
+  // 路由用画的不只是好看：顺序是硬语义，图里它变成纵向位置，表格里只是一列数字
+  { key: 'routes', label: '路由拓扑', icon: IconRoute },
   { key: 'balancers', label: '负载均衡', icon: IconScale },
   { key: 'releases', label: '发布历史', icon: IconHistory },
 ]
@@ -375,9 +376,11 @@ export function GatewayApp() {
               />
             )}
             {tab === 'routes' && (
-              <RoutesTab
+              <TopologyTab
+                gatewayId={gateway.id}
                 listeners={tree.listeners}
                 routes={tree.routes}
+                balancers={tree.balancers}
                 loading={tree.loading}
                 onChanged={tree.reload}
               />
