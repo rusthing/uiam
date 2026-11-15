@@ -29,26 +29,27 @@ import {
   IconPlus,
   IconRefresh,
   IconRoute,
-  IconScale,
   IconServer,
   IconTrash,
   IconUpload,
 } from '../components/icons'
 import { OverviewTab } from '../pages/tabs/OverviewTab'
-import { ListenersTab } from '../pages/tabs/ListenersTab'
-import { TopologyTab } from '../pages/tabs/TopologyTab'
-import { BalancersTab } from '../pages/tabs/BalancersTab'
+import { ConfigTab } from '../pages/tabs/ConfigTab'
 import { ReleasesTab } from '../pages/tabs/ReleasesTab'
 import { getSelection, selectGateway, subscribeSelection } from './selection'
 
-type TabKey = 'overview' | 'listeners' | 'routes' | 'balancers' | 'releases'
+/**
+ * 三个标签，不是五个。
+ *
+ * 监听器 / 路由 / 负载均衡器本来各占一个标签，但它们不是三件独立的事——它们是
+ * **同一条链路上的三段**，分开看就永远看不出「这条路由到底落在哪个后端上」。
+ * 所以合并成一个「配置」，图是主视图，表格是右上角的备选视图。
+ */
+type TabKey = 'overview' | 'config' | 'releases'
 
 const TABS: Array<{ key: TabKey; label: string; icon: typeof IconServer }> = [
   { key: 'overview', label: '概览', icon: IconServer },
-  { key: 'listeners', label: '监听器', icon: IconServer },
-  // 路由用画的不只是好看：顺序是硬语义，图里它变成纵向位置，表格里只是一列数字
-  { key: 'routes', label: '路由拓扑', icon: IconRoute },
-  { key: 'balancers', label: '负载均衡', icon: IconScale },
+  { key: 'config', label: '配置', icon: IconRoute },
   { key: 'releases', label: '发布历史', icon: IconHistory },
 ]
 
@@ -180,9 +181,7 @@ export function GatewayApp() {
 
   const counts: Record<TabKey, number | undefined> = {
     overview: undefined,
-    listeners: tree.listeners.length,
-    routes: tree.routes.length,
-    balancers: tree.balancers.length,
+    config: tree.listeners.length + tree.routes.length + tree.balancers.length,
     releases: tree.releases.length,
   }
 
@@ -366,30 +365,12 @@ export function GatewayApp() {
             {tab === 'overview' && (
               <OverviewTab gateway={gateway} tree={tree} onPreview={openPreview} />
             )}
-            {tab === 'listeners' && (
-              <ListenersTab
-                gatewayId={gateway.id}
-                listeners={tree.listeners}
-                routes={tree.routes}
-                loading={tree.loading}
-                onChanged={tree.reload}
-              />
-            )}
-            {tab === 'routes' && (
-              <TopologyTab
+            {tab === 'config' && (
+              <ConfigTab
                 gatewayId={gateway.id}
                 listeners={tree.listeners}
                 routes={tree.routes}
                 balancers={tree.balancers}
-                loading={tree.loading}
-                onChanged={tree.reload}
-              />
-            )}
-            {tab === 'balancers' && (
-              <BalancersTab
-                gatewayId={gateway.id}
-                balancers={tree.balancers}
-                routes={tree.routes}
                 loading={tree.loading}
                 onChanged={tree.reload}
               />

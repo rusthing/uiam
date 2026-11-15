@@ -1740,29 +1740,33 @@ table.tbl tbody tr:hover td {
 }
 
 /* ============================================================
-   路由拓扑（泳道管道图）
+   网关配置图（监听器 → 路由 → 目标 → 后端）
    ------------------------------------------------------------
-   三列不是排版，是链路：入口节点 → 竖总线分叉 → 有序路由 → 目标。
-   序号圆圈在路由卡片内部，纵向位置就是 first-match-wins 的顺序。
+   不是「路由图」，是整条链路：四列从收请求的地方一直画到后端地址。
+   行由路由决定（一条路由一行，组间插空行），所以纵向位置 = 匹配顺序。
+   连线不用纯 CSS——CSS 只能画同行直线，而这里真正要表达的是**汇聚**
+   （几条路由指向同一个 LB），坐标从 DOM 量出来再用 SVG 三次贝塞尔画。
    ============================================================ */
-.topo {
-  --c-entry: 172px;
-  --c-bus: 22px;
-  --c-wire: 24px;
-  --c-target: 196px;
-  --c-rowgap: 9px;
-  /* 总线要比普通分隔线重一点，否则白底上几乎看不见 */
-  --bus-line: color-mix(in srgb, var(--t3) 62%, transparent);
-  padding-bottom: 4px;
+.cfg {
+  /* 列宽四列共用一套，表头和网格都引用它，改一处两边都跟着动 */
+  --gg-c1: 190px;
+  --gg-c2: minmax(190px, 1fr);
+  --gg-c3: 184px;
+  --gg-c4: 148px;
+  --gg-gap: 44px;
+  /* 用容器查询而不是媒体查询：窗口是可以在大屏里拖窄的，
+     媒体查询看的是浏览器视口，看不出窗口自己的宽度 */
+  container-type: inline-size;
+  container-name: cfg;
 }
-.topo-bar {
+.cfg-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
-.topo-stats {
+.cfg-stats {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1770,357 +1774,673 @@ table.tbl tbody tr:hover td {
   font-size: 11.5px;
   color: var(--t3);
 }
-.topo-stats b {
+.cfg-stats b {
   font-weight: 600;
   color: var(--t1);
   font-variant-numeric: tabular-nums;
 }
-.topo-stats .sep {
+.cfg-stats .sep {
   opacity: 0.45;
 }
-.topo-stats .warn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--warn);
-}
-.topo-stats .mute {
+.cfg-stats .mute {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--surface-sunken);
   color: var(--t3);
 }
-.topo-bar .seg {
-  margin: 0 0 0 auto;
+.cfg-view {
+  margin-left: auto;
+}
+.cfg-view .seg-item {
+  height: 23px;
+  padding: 0 11px;
+  font-size: 11.5px;
+  gap: 0;
 }
 
-/* 列标题与泳道共用同一套列宽，靠 CSS 变量对齐 */
-.topo-cols {
-  display: grid;
-  grid-template-columns: var(--c-entry) var(--c-bus) minmax(0, 1fr) var(--c-wire) var(--c-target);
-  margin-bottom: 7px;
-  font-size: 10.5px;
-  color: var(--t3);
+/* 左图右属性栏：属性栏 sticky，图滚它不滚 */
+.cfg-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
 }
-.topo-cols .c-entry {
-  grid-column: 1;
-}
-.topo-cols .c-route {
-  grid-column: 3 / 5;
-}
-.topo-cols .c-target {
-  grid-column: 5;
-}
-
-.topo-lanes {
-  display: grid;
-  gap: 16px;
-}
-.topo-legend {
-  margin: 12px 0 2px;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--t3);
-}
-
-/* 一条泳道 = 一组「入口 → 路由 → 目标」 */
-.lane {
-  display: grid;
-  grid-template-columns: var(--c-entry) var(--c-bus) minmax(0, 1fr) var(--c-wire) var(--c-target);
-  align-items: center;
-  row-gap: var(--c-rowgap);
-}
-
-/* ---- 入口节点 ---- */
-.lane-entry {
-  position: relative;
-  align-self: center;
+.cfg-canvas {
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 8px 10px 7px;
-  border-radius: 10px;
-  border: 0.5px solid var(--brand-line);
-  background: var(--brand-soft);
+  overflow-x: auto;
+  padding-bottom: 6px;
 }
-/* 从入口右边缘接到竖总线（总线在下一列的中间） */
-.lane-entry::after {
-  content: '';
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  width: calc(var(--c-bus) / 2);
-  height: 1px;
-  background: var(--bus-line);
+.cfg-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
 }
-.le-top {
+
+.cfg-blank {
+  padding: 40px 20px;
+  border: 0.5px dashed var(--line-strong);
+  border-radius: 12px;
+  text-align: center;
+}
+.cfg-blank-t {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t2);
+}
+.cfg-blank-d {
+  margin: 0 auto 14px;
+  max-width: 380px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--t3);
+}
+
+/* ---- 图容器 ---- */
+.gg-head,
+.gg-grid {
+  display: grid;
+  grid-template-columns: var(--gg-c1) var(--gg-c2) var(--gg-c3) var(--gg-c4);
+  column-gap: var(--gg-gap);
+}
+.gg-head {
+  margin-bottom: 7px;
+}
+/* 表头与网格必须同宽，否则列会错开；窗口窄到画不下时两者一起撑到
+   最小宽度，由 .cfg-canvas 横向滚动，而不是把卡片压扁 */
+.gg-head,
+.gg-wrap {
+  min-width: min-content;
+}
+.gg-h {
   display: flex;
   align-items: center;
-  gap: 5px;
-}
-.lane-kind {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--surface-strong);
-  color: var(--accent);
-}
-.lane-kind.tcp {
-  color: var(--warn);
-}
-.le-off {
-  font-size: 10px;
-  color: var(--t3);
-}
-.le-addrs {
-  margin-top: 3px;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: var(--t1);
-  white-space: pre-line;
-  word-break: break-all;
-}
-.le-remark {
-  margin-top: 2px;
+  gap: 6px;
+  min-width: 0;
   font-size: 10.5px;
   color: var(--t3);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.le-tools {
-  margin-left: auto;
-  display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+.gg-h-add {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 0.5px solid var(--line-strong);
+  background: none;
+  color: var(--t3);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
-.lane-entry:hover .le-tools {
-  opacity: 1;
-}
-.le-tools .btn {
-  height: 17px;
-  padding: 0 3px;
+.gg-h-add:hover {
+  color: var(--accent);
+  border-color: var(--brand-line);
 }
 
-/* ---- 总线节点：贯穿的竖线 + 分叉进路由的箭头 ---- */
-.lane-stub {
+.gg-wrap {
   position: relative;
-  align-self: stretch;
-  justify-self: stretch;
 }
-/* 上下各多伸一个行距，相邻节点首尾相接才连成一条线 */
-.lane-stub::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  margin-left: -0.5px;
-  width: 1px;
-  top: calc(-1 * var(--c-rowgap));
-  bottom: calc(-1 * var(--c-rowgap));
-  background: var(--bus-line);
-}
-.lane-stub.first::before {
-  top: 50%;
-}
-.lane-stub.last::before {
-  bottom: 50%;
-}
-.lane-stub .wire {
+.gg-edges {
   position: absolute;
   left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.gg-grid {
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  row-gap: 8px;
+}
+.gg-cell {
+  display: grid;
+  align-items: center;
+  min-width: 0;
+}
+.gg-cell-listener {
+  align-self: stretch;
+}
+.gg-spacer {
+  height: 14px;
+}
+.gg-empty {
+  padding: 8px 10px;
+  border: 0.5px dashed var(--line-strong);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--t3);
+}
+.gg-backends {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
 }
 
-/* ---- 路由卡片 ---- */
-.rnode {
+/* 「+」长在监听器出线上：位置由测量出来的卡片右边缘决定 */
+.gg-add {
+  position: absolute;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 8px;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 0.5px solid var(--brand-line);
+  background: var(--surface-strong);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  opacity: 0.62;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gg-add:hover {
+  opacity: 1;
+  transform: scale(1.14);
+}
+
+/* ---- 连线 ---- */
+.gg-edge {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+.gg-arrow {
+  fill: currentColor;
+  stroke: none;
+}
+.gg-edge.neutral,
+.gg-arrow.neutral {
+  color: color-mix(in srgb, var(--t3) 74%, transparent);
+}
+.gg-edge.lb,
+.gg-arrow.lb {
+  color: color-mix(in srgb, var(--ok) 78%, transparent);
+}
+.gg-edge.host,
+.gg-arrow.host {
+  color: color-mix(in srgb, var(--warn) 78%, transparent);
+}
+.gg-edge.static,
+.gg-arrow.static {
+  color: color-mix(in srgb, var(--accent) 72%, transparent);
+}
+.gg-edge.bad,
+.gg-arrow.bad {
+  color: var(--danger);
+}
+
+/* ---- 节点卡片 ---- */
+.gnode {
+  position: relative;
   min-width: 0;
-  padding: 7px 10px;
-  border-radius: 8px;
+  padding: 7px 10px 8px;
+  border-radius: 9px;
   border: 0.5px solid var(--line);
   background: var(--surface-sunken);
+  cursor: pointer;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
     box-shadow 0.15s ease;
 }
-.rnode:hover {
+.gnode:hover {
   border-color: var(--brand-line);
+  background: var(--surface-strong);
+}
+.gnode.on {
+  border-color: var(--accent);
   background: var(--surface-strong);
   box-shadow: 0 0 0 2px var(--brand-soft);
 }
-.rnode.off {
-  opacity: 0.6;
+.gnode.off {
+  opacity: 0.55;
 }
-.rnode-n {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  background: var(--body-bg);
-  color: var(--t2);
-  border: 0.5px solid var(--line-strong);
+.gnode.warn {
+  border-color: color-mix(in srgb, var(--warn) 42%, transparent);
 }
-/* 第 1 位是真正会命中的那条，给它实心 */
-.rnode.first .rnode-n {
-  color: #fff;
-  background: var(--accent);
-  border-color: transparent;
-}
-.rnode-main {
-  min-width: 0;
-}
-.rnode-t {
+.gnode-h {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-width: 0;
+}
+/* 启停永远在卡片右上角：它是「这一块现在参不参与渲染」，不是表单字段 */
+.gnode-h > .ui-sw {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.gnode-title {
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--t1);
-}
-.rnode-name {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rnode-off {
-  flex-shrink: 0;
+.gnode-kind {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 5px;
   font-size: 9.5px;
-  font-weight: 400;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--body-bg);
-  color: var(--t3);
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: var(--brand-soft);
+  color: var(--accent);
 }
-.rnode-m {
-  margin-top: 2px;
+.gnode-kind.tcp {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.gnode-n {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+}
+.gnode-num {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 0.5px solid var(--line-strong);
+  background: var(--body-bg);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--t2);
+}
+.gnode-addrs {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--t1);
+  white-space: pre-line;
+  word-break: break-all;
+}
+.gnode-m {
+  margin-top: 3px;
   font-size: 10.5px;
   color: var(--t3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rnode-warn {
-  margin-top: 3px;
+.gnode-sub {
+  margin-top: 2px;
   font-size: 10px;
-  line-height: 1.45;
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gnode-flag {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
   color: var(--warn);
 }
-.rnode-tools {
+.gnode-flag.mute {
+  font-size: 9.5px;
+  color: var(--t3);
+}
+.gnode-dot {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+/* 目标卡片按类型着色：一眼分清「落到 LB」和「直连 Host」 */
+.gnode-target.lb {
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 26%, transparent);
+}
+.gnode-target.lb .gnode-title {
+  color: var(--ok);
+}
+.gnode-target.host {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+}
+.gnode-target.host .gnode-title {
+  color: var(--warn);
+}
+.gnode-target.static {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+}
+.gnode-target.static .gnode-title {
+  color: var(--accent);
+}
+.gnode-target.bad {
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
+}
+.gnode-target.bad .gnode-title {
+  color: var(--danger);
+}
+
+.gnode-backend {
   display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  color: var(--t2);
 }
-.rnode:hover .rnode-tools {
-  opacity: 1;
-}
-.rnode-tools .btn {
-  height: 18px;
-  padding: 0 4px;
-}
-.rnode-tools .btn.danger:hover {
-  color: var(--danger);
-}
-
-/* 拖动改序：被拖的那条虚化，落点画一条蓝线 */
-.rnode.dragging {
-  opacity: 0.4;
-  border-style: dashed;
-}
-.rnode.drop-before {
-  box-shadow: 0 -2px 0 0 var(--accent);
-}
-.rnode.drop-after {
-  box-shadow: 0 2px 0 0 var(--accent);
-}
-
-/* 连线颜色跟着目标类型走：LB 绿、Host 琥珀、Static 蓝、坏红 */
-.wire {
-  color: color-mix(in srgb, var(--t3) 80%, transparent);
-}
-.wire.lb {
-  color: color-mix(in srgb, var(--ok) 75%, transparent);
-}
-.wire.host {
-  color: color-mix(in srgb, var(--warn) 70%, transparent);
-}
-.wire.static {
-  color: color-mix(in srgb, var(--accent) 65%, transparent);
-}
-.wire.bad {
-  color: var(--danger);
-}
-
-/* ---- 目标节点 ---- */
-.tnode {
+.gnode-backend .mono {
   min-width: 0;
-  padding: 6px 9px;
-  border-radius: 8px;
-  border: 0.5px solid var(--line);
-  background: var(--surface-sunken);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.tnode-t {
-  font-size: 12px;
+
+/* ---- 右侧属性栏 ---- */
+.inspector {
+  flex: 0 0 268px;
+  width: 268px;
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 12px 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-strong);
+  box-shadow: var(--shadow-sm);
+}
+.ins-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ins-kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--t3);
+  text-transform: uppercase;
+}
+.ins-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1);
+  word-break: break-all;
+}
+.ins-name.mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
   font-weight: 500;
+}
+.ins-note {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--t3);
+}
+.ins-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ins-sec-t {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--t3);
+  text-transform: uppercase;
+}
+.ins-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.ins-k {
+  flex: 0 0 62px;
+  color: var(--t3);
+}
+.ins-v {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--t1);
+  word-break: break-word;
+}
+.ins-code {
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--t2);
+  word-break: break-all;
+}
+.ins-code.on {
+  background: var(--brand-soft);
+  color: var(--accent);
+}
+.ins-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 7px;
+  border-radius: 6px;
+  border: 0.5px solid var(--line);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ins-link:hover {
+  border-color: var(--brand-line);
+  background: var(--hover);
+}
+.ins-link-n {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  color: var(--t3);
+  font-variant-numeric: tabular-nums;
+}
+.ins-link-t {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 128px;
+  font-size: 11.5px;
   color: var(--t1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tnode-s {
-  margin-top: 1px;
-  font-size: 10.5px;
+.ins-link-s {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10px;
   color: var(--t3);
+  text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tnode.off {
-  opacity: 0.55;
+.ins-mute {
+  margin: 0;
+  font-size: 11px;
+  color: var(--t3);
 }
-.tnode.lb {
-  background: var(--ok-soft);
-  border-color: color-mix(in srgb, var(--ok) 26%, transparent);
-}
-.tnode.lb .tnode-t {
-  color: var(--ok);
-}
-.tnode.host {
-  background: var(--warn-soft);
-  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
-}
-.tnode.host .tnode-t {
+.ins-warn {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.55;
   color: var(--warn);
 }
-.tnode.static {
-  background: var(--brand-soft);
-  border-color: var(--brand-line);
+.ins-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.tnode.static .tnode-t {
-  color: var(--accent);
+.ins-empty-t {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--t2);
 }
-.tnode.bad {
-  background: var(--danger-soft);
-  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
+.ins-empty-d {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: var(--t3);
 }
-.tnode.bad .tnode-t {
+.ins-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10.5px;
+  color: var(--t3);
+}
+.ins-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lg {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.lg.lb {
+  background: var(--ok);
+}
+.lg.host {
+  background: var(--warn);
+}
+.lg.static {
+  background: var(--accent);
+}
+.lg.bad {
+  background: var(--danger);
+}
+.ins-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 0.5px solid var(--line-soft);
+}
+.ins-del:hover {
   color: var(--danger);
 }
-
-.lane-empty {
-  grid-column: 3 / 6;
-  padding: 4px 2px;
+.ins-inline {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
   font-size: 11.5px;
-  color: var(--t3);
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+}
+.ins-inline:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   启停开关
+   ------------------------------------------------------------
+   出现在卡片右上角与表格状态列，不出现在表单里。
+   ============================================================ */
+.ui-sw {
+  position: relative;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 15px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.ui-sw > i {
+  position: absolute;
+  top: 1.5px;
+  left: 1.5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ui-sw.on {
+  background: var(--ok);
+}
+.ui-sw.on > i {
+  transform: translateX(11px);
+}
+.ui-sw.md {
+  width: 32px;
+  height: 18px;
+}
+.ui-sw.md > i {
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+}
+.ui-sw.md.on > i {
+  transform: translateX(14px);
+}
+[data-theme='dark'] .ui-sw {
+  background: rgba(255, 255, 255, 0.22);
+}
+[data-theme='dark'] .ui-sw.on {
+  background: var(--ok);
+}
+
+@container cfg (max-width: 1120px) {
+  /* 窗口窄到「属性栏 + 四列」放不下时，属性栏掉到图下面，别把图挤成一条缝。
+     这里必须 stretch：column 方向下 flex-start 会让图按内容宽度撑开，
+     结果整页横向滚动，而不是图自己滚。 */
+  .cfg-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inspector {
+    position: static;
+    width: 100%;
+    flex: 1 1 auto;
+    max-height: none;
+  }
 }
 
 /* ============================================================

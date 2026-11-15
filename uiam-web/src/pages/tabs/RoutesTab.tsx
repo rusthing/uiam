@@ -11,9 +11,11 @@
 import { useMemo, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { describeAddrs, describeMatcher, describeTo, shadowedBy } from '../../lib/format'
+import { asRoutePayload } from '../../lib/payload'
 import type { Listener, Route } from '../../lib/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { RouteForm } from '../../components/RouteForm'
+import { Switch } from '../../components/Switch'
 import { useToast } from '../../components/Toast'
 import { Badge, Empty, Section, Spinner } from '../../components/ui'
 import { IconEdit, IconPlus, IconTrash } from '../../components/icons'
@@ -54,6 +56,15 @@ export function RoutesTab({
     setEditing(route)
     setPresetListenerId(undefined)
     setOpen(true)
+  }
+
+  const toggle = async (route: Route) => {
+    try {
+      await api.route.update({ ...asRoutePayload(route), enabled: !route.enabled })
+      onChanged()
+    } catch (e) {
+      toast.error((e as ApiError).message)
+    }
   }
 
   const remove = async () => {
@@ -155,11 +166,11 @@ export function RoutesTab({
                             {describeTo(route.toJson)}
                           </td>
                           <td>
-                            {route.enabled ? (
-                              <Badge tone="ok">启用</Badge>
-                            ) : (
-                              <Badge tone="mute">停用</Badge>
-                            )}
+                            <Switch
+                              on={route.enabled}
+                              onChange={() => void toggle(route)}
+                              label="启用路由"
+                            />
                           </td>
                           <td>
                             <div className="flex justify-end gap-1">

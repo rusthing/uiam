@@ -9,9 +9,11 @@
 import { useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { describeAddrs } from '../../lib/format'
+import { asListenerPayload } from '../../lib/payload'
 import type { Listener, Route } from '../../lib/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ListenerForm } from '../../components/ListenerForm'
+import { Switch } from '../../components/Switch'
 import { useToast } from '../../components/Toast'
 import { Badge, Empty, Section, Spinner, cx } from '../../components/ui'
 import { IconEdit, IconPlus, IconTrash } from '../../components/icons'
@@ -44,6 +46,15 @@ export function ListenersTab({
   const openEdit = (listener: Listener) => {
     setEditing(listener)
     setOpen(true)
+  }
+
+  const toggle = async (listener: Listener) => {
+    try {
+      await api.listener.update({ ...asListenerPayload(listener), enabled: !listener.enabled })
+      onChanged()
+    } catch (e) {
+      toast.error((e as ApiError).message)
+    }
   }
 
   const remove = async () => {
@@ -133,11 +144,11 @@ export function ListenersTab({
                         {listener.remark || '—'}
                       </td>
                       <td>
-                        {listener.enabled ? (
-                          <Badge tone="ok">启用</Badge>
-                        ) : (
-                          <Badge tone="mute">停用</Badge>
-                        )}
+                        <Switch
+                          on={listener.enabled}
+                          onChange={() => void toggle(listener)}
+                          label="启用监听器"
+                        />
                       </td>
                       <td>
                         <div className="flex justify-end gap-1">

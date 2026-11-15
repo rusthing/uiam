@@ -1,45 +1,23 @@
 /**
  * 负载均衡器：实例级全局 map，被路由按名字引用。
  *
- * `name` 是被引用的键，所以它必须独立成列并有唯一约束——界面上把它放在第一列，
- * 并显示「被几条路由引用」。引用数为 0 时不是错误（渲染只给告警），但基本可以
- * 确定是写错了名字或者忘了改路由。
+ * `name` 是被引用的键，所以它必须独立成列；「被几条路由引用」比任何状态图标都重要——
+ * 引用数为 0 不是错误（渲染只给告警），但基本可以确定是写错了名字或者忘了改路由。
+ *
+ * 启停在状态列的开关上，不在表单里。表单已抽到 `components/BalancerForm`，
+ * 图里的节点也用同一个。
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api, ApiError } from '../../lib/api'
 import { describeBalancer, referencedBalancer } from '../../lib/format'
-import type { Balancer, BalancerPayload, Route } from '../../lib/types'
+import { asBalancerPayload } from '../../lib/payload'
+import type { Balancer, Route } from '../../lib/types'
+import { BalancerForm } from '../../components/BalancerForm'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { JsonEditor } from '../../components/JsonEditor'
+import { Switch } from '../../components/Switch'
 import { useToast } from '../../components/Toast'
-import { Badge, Empty, Field, Modal, Section, Spinner, Toggle } from '../../components/ui'
+import { Empty, Section, Spinner } from '../../components/ui'
 import { IconEdit, IconPlus, IconTrash } from '../../components/icons'
-
-const TEMPLATES: Record<string, string> = {
-  Array: '{"type":"Array","update-frequency":"15s","selection-algorithm":"RoundRobin","backends":["127.0.0.1:8080"]}',
-  SystemConfig: '{"type":"SystemConfig","host":"adm-svr","port":9001}',
-  DNS: '{"type":"DNS","query-name":"example.com","port":443,"dns-server":"8.8.8.8"}',
-  Consul: '{"type":"Consul","base-url":"http://127.0.0.1:8500","service-name":"adm-svr"}',
-  Nacos: '{"type":"Nacos","base-url":"http://127.0.0.1:8848","service-name":"adm-svr"}',
-  Swarm: '{"type":"Swarm","service-name":"gatex-rs_svr01","port":80}',
-}
-
-function typeOf(json: string): string {
-  try {
-    const parsed = JSON.parse(json)
-    if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') return parsed.type
-  } catch {
-    // 解析失败交给 JsonEditor 提示
-  }
-  return ''
-}
-
-interface FormState {
-  name: string
-  configJson: string
-  remark: string
-  enabled: boolean
-}
 
 export function BalancersTab({
   gatewayId,
@@ -57,56 +35,17 @@ export function BalancersTab({
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Balancer | null>(null)
-  const [form, setForm] = useState<FormState>({
-    name: '',
-    configJson: TEMPLATES.Array,
-    remark: '',
-    enabled: true,
-  })
-  const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState<Balancer | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    if (editing) {
-      setForm({
-        name: editing.name,
-        configJson: editing.configJson,
-        remark: editing.remark ?? '',
-        enabled: editing.enabled,
-      })
-    } else {
-      setForm({ name: '', configJson: TEMPLATES.Array, remark: '', enabled: true })
-    }
-  }, [open, editing])
 
   const refCount = (name: string) =>
     routes.filter((r) => referencedBalancer(r.toJson) === name).length
 
-  const save = async () => {
-    if (!form.name.trim()) {
-      toast.error('名称不能为空：它是被路由引用的键')
-      return
-    }
-    const payload: BalancerPayload = {
-      id: editing?.id,
-      gatewayId,
-      name: form.name.trim(),
-      configJson: form.configJson,
-      remark: form.remark.trim() || null,
-      enabled: form.enabled,
-    }
-    setSaving(true)
+  const toggle = async (balancer: Balancer) => {
     try {
-      if (editing) await api.balancer.update(payload)
-      else await api.balancer.add(payload)
-      toast.success(editing ? '负载均衡器已保存' : '负载均衡器已创建')
-      setOpen(false)
+      await api.balancer.update({ ...asBalancerPayload(balancer), enabled: !balancer.enabled })
       onChanged()
     } catch (e) {
       toast.error((e as ApiError).message)
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -157,7 +96,7 @@ export function BalancersTab({
                   <th className="w-[110px]">类型</th>
                   <th>后端 / 服务</th>
                   <th className="w-[80px]">引用</th>
-                  <th className="w-[70px]">状态</th>
+                  <th className="w-[76px]">状态</th>
                   <th className="w-[86px] text-right">操作</th>
                 </tr>
               </thead>
@@ -168,9 +107,7 @@ export function BalancersTab({
                   return (
                     <tr key={balancer.id}>
                       <td className="mono font-medium text-ink">{balancer.name}</td>
-                      <td>
-                        <Badge tone="brand">{info.type}</Badge>
-                      </td>
+                      <td>{info.type}</td>
                       <td>
                         <div className="flex flex-wrap gap-1">
                           {info.backends.length === 0 ? (
@@ -202,11 +139,11 @@ export function BalancersTab({
                         )}
                       </td>
                       <td>
-                        {balancer.enabled ? (
-                          <Badge tone="ok">启用</Badge>
-                        ) : (
-                          <Badge tone="mute">停用</Badge>
-                        )}
+                        <Switch
+                          on={balancer.enabled}
+                          onChange={() => void toggle(balancer)}
+                          label={`启用 ${balancer.name}`}
+                        />
                       </td>
                       <td>
                         <div className="flex justify-end gap-1">
@@ -238,70 +175,13 @@ export function BalancersTab({
         )}
       </Section>
 
-      <Modal
+      <BalancerForm
         open={open}
+        gatewayId={gatewayId}
+        balancer={editing}
         onClose={() => setOpen(false)}
-        width={680}
-        title={editing ? '编辑负载均衡器' : '新建负载均衡器'}
-        description="config_json 是 gatex 的 BalancerConfig，type 区分大小写。"
-        footer={
-          <>
-            <button className="btn" onClick={() => setOpen(false)} disabled={saving}>
-              取消
-            </button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? '保存中…' : '保存'}
-            </button>
-          </>
-        }
-      >
-        <div className="grid gap-3.5">
-          <div className="grid gap-3.5 sm:grid-cols-2">
-            <Field label="名称" required hint="被路由引用；同实例内唯一">
-              <input
-                className="input mono"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="adm-lb"
-              />
-            </Field>
-            <Field label="类型">
-              <select
-                className="select"
-                value={typeOf(form.configJson)}
-                onChange={(e) => setForm((f) => ({ ...f, configJson: TEMPLATES[e.target.value] ?? '' }))}
-              >
-                <option value="">（自定义）</option>
-                {Object.keys(TEMPLATES).map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="配置（config_json）">
-            <JsonEditor
-              value={form.configJson}
-              onChange={(v) => setForm((f) => ({ ...f, configJson: v }))}
-              rows={7}
-            />
-          </Field>
-          <Field label="备注">
-            <input
-              className="input"
-              value={form.remark}
-              onChange={(e) => setForm((f) => ({ ...f, remark: e.target.value }))}
-              placeholder="可选"
-            />
-          </Field>
-          <Toggle
-            checked={form.enabled}
-            onChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-            label="启用（停用的不参与渲染）"
-          />
-        </div>
-      </Modal>
+        onSaved={onChanged}
+      />
 
       <ConfirmDialog
         open={Boolean(removing)}

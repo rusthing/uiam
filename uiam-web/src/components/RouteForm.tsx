@@ -8,10 +8,11 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { describeAddrs, parseJson } from '../lib/format'
+import { asRoutePayload } from '../lib/payload'
 import type { Listener, Route, RoutePayload } from '../lib/types'
 import { JsonEditor } from './JsonEditor'
 import { useToast } from './Toast'
-import { Field, Modal, Toggle } from './ui'
+import { Field, Modal } from './ui'
 
 const MATCHER_TEMPLATES: Record<string, string> = {
   Prefix: '{"type":"Prefix","urn":["/api"]}',
@@ -44,7 +45,6 @@ interface FormState {
   matcherJson: string
   toJson: string
   logJson: string
-  enabled: boolean
 }
 
 export function RouteForm({
@@ -74,7 +74,6 @@ export function RouteForm({
     matcherJson: MATCHER_TEMPLATES.Prefix,
     toJson: TO_TEMPLATES.LoadBalancer,
     logJson: '',
-    enabled: true,
   })
   const [saving, setSaving] = useState(false)
 
@@ -88,7 +87,6 @@ export function RouteForm({
         matcherJson: route.matcherJson,
         toJson: route.toJson,
         logJson: route.logJson ?? '',
-        enabled: route.enabled,
       })
       return
     }
@@ -101,21 +99,30 @@ export function RouteForm({
       matcherJson: MATCHER_TEMPLATES.Prefix,
       toJson: TO_TEMPLATES.LoadBalancer,
       logJson: '',
-      enabled: true,
     })
   }, [open, route, presetListenerId, listeners, routes])
 
   const save = async () => {
-    const payload: RoutePayload = {
-      id: route?.id,
-      listenerId: form.listenerId,
-      sortNo: form.sortNo,
-      name: form.name.trim(),
-      matcherJson: form.matcherJson,
-      toJson: form.toJson,
-      logJson: form.logJson.trim() || null,
-      enabled: form.enabled,
-    }
+    // 编辑走 asRoutePayload 铺底：enabled 这类表单里没有的字段原样带回去
+    const payload: RoutePayload = route
+      ? {
+          ...asRoutePayload(route),
+          listenerId: form.listenerId,
+          sortNo: form.sortNo,
+          name: form.name.trim(),
+          matcherJson: form.matcherJson,
+          toJson: form.toJson,
+          logJson: form.logJson.trim() || null,
+        }
+      : {
+          listenerId: form.listenerId,
+          sortNo: form.sortNo,
+          name: form.name.trim(),
+          matcherJson: form.matcherJson,
+          toJson: form.toJson,
+          logJson: form.logJson.trim() || null,
+          enabled: true,
+        }
     if (!payload.name) {
       toast.error('路由名称不能为空')
       return
@@ -139,7 +146,7 @@ export function RouteForm({
       onClose={onClose}
       width={760}
       title={route ? '编辑路由' : '新建路由'}
-      description="matcher / to 是 gatex 的配置类型，直接写 JSON；type 区分大小写。"
+      description="matcher / to 是 gatex 的配置类型，直接写 JSON；type 区分大小写。启停在图上的卡片右上角。"
       footer={
         <>
           <button className="btn" onClick={onClose} disabled={saving}>
@@ -242,11 +249,6 @@ export function RouteForm({
           />
         </Field>
 
-        <Toggle
-          checked={form.enabled}
-          onChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-          label="启用（停用的路由不参与渲染）"
-        />
       </div>
     </Modal>
   )

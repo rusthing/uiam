@@ -1,15 +1,18 @@
 /**
  * 监听器表单（新建 / 编辑），从 ListenersTab 里抽出来。
  *
- * 抽出来的理由只有一个：**拓扑图和表格都要编辑同一个对象**。两处各写一份表单，
+ * 抽出来的理由只有一个：**图和表格都要编辑同一个对象**。两处各写一份表单，
  * 迟早出现「图里能改 TLS、表里改不了」这种漂移；而且监听地址这种结构性变更的
  * 警告文案只该有一份。
+ *
+ * 启用/停用不在这里：它挂在卡片右上角的开关上，改了立刻生效，不必先开表单。
  */
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
+import { asListenerPayload } from '../lib/payload'
 import type { Listener, ListenerAddr, ListenerPayload } from '../lib/types'
 import { useToast } from './Toast'
-import { Field, Modal, Toggle } from './ui'
+import { Field, Modal } from './ui'
 import { IconPlus, IconTrash } from './icons'
 
 /** 监听地址编辑器：结构化行比裸 JSON 少犯「少个逗号」的错 */
@@ -108,7 +111,6 @@ interface FormState {
   sortNo: number
   addrsJson: string
   remark: string
-  enabled: boolean
 }
 
 function fromListener(l: Listener): FormState {
@@ -117,7 +119,6 @@ function fromListener(l: Listener): FormState {
     sortNo: l.sortNo,
     addrsJson: l.addrsJson,
     remark: l.remark ?? '',
-    enabled: l.enabled,
   }
 }
 
@@ -144,29 +145,33 @@ export function ListenerForm({
     sortNo: nextSort,
     addrsJson: '[]',
     remark: '',
-    enabled: true,
   })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setForm(
-      listener
-        ? fromListener(listener)
-        : { kind: 1, sortNo: nextSort, addrsJson: '[]', remark: '', enabled: true },
+      listener ? fromListener(listener) : { kind: 1, sortNo: nextSort, addrsJson: '[]', remark: '' },
     )
   }, [open, listener, nextSort])
 
   const save = async () => {
-    const payload: ListenerPayload = {
-      id: listener?.id,
-      gatewayId,
-      kind: form.kind,
-      sortNo: form.sortNo,
-      addrsJson: form.addrsJson || '[]',
-      remark: form.remark.trim() || null,
-      enabled: form.enabled,
-    }
+    const payload: ListenerPayload = listener
+      ? {
+          ...asListenerPayload(listener),
+          kind: form.kind,
+          sortNo: form.sortNo,
+          addrsJson: form.addrsJson || '[]',
+          remark: form.remark.trim() || null,
+        }
+      : {
+          gatewayId,
+          kind: form.kind,
+          sortNo: form.sortNo,
+          addrsJson: form.addrsJson || '[]',
+          remark: form.remark.trim() || null,
+          enabled: true,
+        }
     setSaving(true)
     try {
       const saved = listener
@@ -188,7 +193,7 @@ export function ListenerForm({
       onClose={onClose}
       width={620}
       title={listener ? '编辑监听器' : '新建监听器'}
-      description="监听地址在网关启动时绑定：改这里会让发布变成「需要重启」。"
+      description="监听地址在网关启动时绑定：改这里会让发布变成「需要重启」。启停在图上的卡片右上角。"
       footer={
         <>
           <button className="btn" onClick={onClose} disabled={saving}>
@@ -239,11 +244,6 @@ export function ListenerForm({
             placeholder="可选"
           />
         </Field>
-        <Toggle
-          checked={form.enabled}
-          onChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
-          label="启用（停用的监听器不参与渲染）"
-        />
       </div>
     </Modal>
   )
