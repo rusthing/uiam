@@ -1742,10 +1742,17 @@ table.tbl tbody tr:hover td {
 /* ============================================================
    路由拓扑（泳道管道图）
    ------------------------------------------------------------
-   三列不是排版：入口 → 有序路由链 → 目标。序号徽标串在一条竖脊上，
-   把 first-match-wins 的顺序变成看得见的上下位置——这是表格给不了的信息。
+   三列不是排版，是链路：入口节点 → 竖总线分叉 → 有序路由 → 目标。
+   序号圆圈在路由卡片内部，纵向位置就是 first-match-wins 的顺序。
    ============================================================ */
 .topo {
+  --c-entry: 172px;
+  --c-bus: 22px;
+  --c-wire: 24px;
+  --c-target: 196px;
+  --c-rowgap: 9px;
+  /* 总线要比普通分隔线重一点，否则白底上几乎看不见 */
+  --bus-line: color-mix(in srgb, var(--t3) 62%, transparent);
   padding-bottom: 4px;
 }
 .topo-bar {
@@ -1783,191 +1790,231 @@ table.tbl tbody tr:hover td {
 .topo-bar .seg {
   margin: 0 0 0 auto;
 }
-.topo-hint {
-  margin: 0 0 12px;
-  font-size: 11.5px;
-  line-height: 1.65;
+
+/* 列标题与泳道共用同一套列宽，靠 CSS 变量对齐 */
+.topo-cols {
+  display: grid;
+  grid-template-columns: var(--c-entry) var(--c-bus) minmax(0, 1fr) var(--c-wire) var(--c-target);
+  margin-bottom: 7px;
+  font-size: 10.5px;
   color: var(--t3);
 }
-.topo-hint b {
-  font-weight: 600;
-  color: var(--t2);
+.topo-cols .c-entry {
+  grid-column: 1;
 }
-.topo-hint .busy {
-  color: var(--accent);
+.topo-cols .c-route {
+  grid-column: 3 / 5;
 }
+.topo-cols .c-target {
+  grid-column: 5;
+}
+
 .topo-lanes {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 .topo-legend {
   margin: 12px 0 2px;
   font-size: 11px;
+  line-height: 1.6;
   color: var(--t3);
 }
 
+/* 一条泳道 = 一组「入口 → 路由 → 目标」 */
 .lane {
-  border: 0.5px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface-strong);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: var(--c-entry) var(--c-bus) minmax(0, 1fr) var(--c-wire) var(--c-target);
+  align-items: center;
+  row-gap: var(--c-rowgap);
 }
-[data-theme='dark'] .lane {
-  background: rgba(255, 255, 255, 0.035);
+
+/* ---- 入口节点 ---- */
+.lane-entry {
+  position: relative;
+  align-self: center;
+  min-width: 0;
+  padding: 8px 10px 7px;
+  border-radius: 10px;
+  border: 0.5px solid var(--brand-line);
+  background: var(--brand-soft);
 }
-.lane-head {
+/* 从入口右边缘接到竖总线（总线在下一列的中间） */
+.lane-entry::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: calc(var(--c-bus) / 2);
+  height: 1px;
+  background: var(--bus-line);
+}
+.le-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 0.5px solid var(--line-soft);
-  background: var(--side-bg);
+  gap: 5px;
 }
 .lane-kind {
-  flex-shrink: 0;
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.4px;
   padding: 1px 5px;
   border-radius: 5px;
-  background: var(--brand-soft);
+  background: var(--surface-strong);
   color: var(--accent);
 }
 .lane-kind.tcp {
-  background: var(--warn-soft);
   color: var(--warn);
 }
-.lane-addr {
+.le-off {
+  font-size: 10px;
+  color: var(--t3);
+}
+.le-addrs {
+  margin-top: 3px;
   font-size: 11.5px;
+  line-height: 1.45;
   color: var(--t1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-line;
+  word-break: break-all;
 }
-.lane-remark {
-  font-size: 11px;
+.le-remark {
+  margin-top: 2px;
+  font-size: 10.5px;
   color: var(--t3);
-  max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.lane-count {
+.le-tools {
   margin-left: auto;
-  font-size: 11px;
-  color: var(--t3);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.lane-tools {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
 }
-.lane-tools .btn {
-  height: 20px;
-  padding: 0 6px;
-  font-size: 11px;
+.lane-entry:hover .le-tools {
+  opacity: 1;
+}
+.le-tools .btn {
+  height: 17px;
+  padding: 0 3px;
 }
 
-.lane-flow {
+/* ---- 总线节点：贯穿的竖线 + 分叉进路由的箭头 ---- */
+.lane-stub {
   position: relative;
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px 12px;
+  align-self: stretch;
+  justify-self: stretch;
 }
-/* 竖脊：把「顺序」画成一条线，序号徽标骑在上面 */
-.lane-flow::before {
+/* 上下各多伸一个行距，相邻节点首尾相接才连成一条线 */
+.lane-stub::before {
   content: '';
   position: absolute;
-  left: 26px;
-  top: 20px;
-  bottom: 22px;
-  width: 1.5px;
-  border-radius: 2px;
-  background: linear-gradient(
-    180deg,
-    var(--brand-line) 0%,
-    var(--line-strong) 14%,
-    var(--line-strong) 82%,
-    transparent 100%
-  );
+  left: 50%;
+  margin-left: -0.5px;
+  width: 1px;
+  top: calc(-1 * var(--c-rowgap));
+  bottom: calc(-1 * var(--c-rowgap));
+  background: var(--bus-line);
 }
-.lane-empty {
-  grid-column: 1 / -1;
-  padding: 8px 4px 8px 30px;
-  font-size: 11.5px;
-  color: var(--t3);
+.lane-stub.first::before {
+  top: 50%;
+}
+.lane-stub.last::before {
+  bottom: 50%;
+}
+.lane-stub .wire {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-.flow-row {
-  position: relative;
+/* ---- 路由卡片 ---- */
+.rnode {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 28px minmax(0, 200px);
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 8px;
-  border-radius: 9px;
-}
-.flow-row.off {
-  opacity: 0.62;
-}
-.flow-n {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  font-size: 10.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--t2);
-  background: var(--surface-strong);
-  border: 1px solid var(--line-strong);
-}
-[data-theme='dark'] .flow-n {
-  background: #2a2a2e;
-}
-/* 第 1 位是真正会命中的那条，给它实心 */
-.lane-flow > .flow-row:first-child .flow-n {
-  color: #fff;
-  background: var(--accent);
-  border-color: transparent;
-}
-
-.rnode {
   min-width: 0;
-  padding: 7px 9px;
-  border-radius: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
   border: 0.5px solid var(--line);
-  background: var(--body-bg);
+  background: var(--surface-sunken);
   transition:
     border-color 0.15s ease,
+    background 0.15s ease,
     box-shadow 0.15s ease;
 }
 .rnode:hover {
   border-color: var(--brand-line);
+  background: var(--surface-strong);
   box-shadow: 0 0 0 2px var(--brand-soft);
 }
-.rnode-h {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.rnode.off {
+  opacity: 0.6;
+}
+.rnode-n {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--body-bg);
+  color: var(--t2);
+  border: 0.5px solid var(--line-strong);
+}
+/* 第 1 位是真正会命中的那条，给它实心 */
+.rnode.first .rnode-n {
+  color: #fff;
+  background: var(--accent);
+  border-color: transparent;
+}
+.rnode-main {
   min-width: 0;
 }
 .rnode-t {
-  font-size: 12px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--t1);
+}
+.rnode-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.rnode-off {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 400;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--body-bg);
+  color: var(--t3);
+}
+.rnode-m {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rnode-warn {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--warn);
+}
 .rnode-tools {
-  margin-left: auto;
   display: flex;
   gap: 2px;
   opacity: 0;
@@ -1983,147 +2030,96 @@ table.tbl tbody tr:hover td {
 .rnode-tools .btn.danger:hover {
   color: var(--danger);
 }
-.rnode-b {
-  display: flex;
-  gap: 6px;
-  margin-top: 3px;
-  min-width: 0;
+
+/* 拖动改序：被拖的那条虚化，落点画一条蓝线 */
+.rnode.dragging {
+  opacity: 0.4;
+  border-style: dashed;
 }
-.rnode-k {
-  flex-shrink: 0;
-  font-size: 10px;
-  color: var(--t3);
-  line-height: 1.75;
+.rnode.drop-before {
+  box-shadow: 0 -2px 0 0 var(--accent);
 }
-.rnode-v {
-  font-size: 11px;
-  color: var(--t2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rnode-warn {
-  margin-top: 4px;
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: var(--warn);
-}
-/* 宽卡片右侧的零碎信息：图里显示的是「位置」，这两个是「位置之外还该知道的」 */
-.rnode-meta {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-  align-items: center;
-}
-.rnode-meta span {
-  font-size: 9.5px;
-  line-height: 1.6;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--surface-sunken);
-  color: var(--t3);
+.rnode.drop-after {
+  box-shadow: 0 2px 0 0 var(--accent);
 }
 
+/* 连线颜色跟着目标类型走：LB 绿、Host 琥珀、Static 蓝、坏红 */
 .wire {
-  justify-self: center;
-  color: color-mix(in srgb, var(--t3) 78%, transparent);
+  color: color-mix(in srgb, var(--t3) 80%, transparent);
+}
+.wire.lb {
+  color: color-mix(in srgb, var(--ok) 75%, transparent);
+}
+.wire.host {
+  color: color-mix(in srgb, var(--warn) 70%, transparent);
+}
+.wire.static {
+  color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .wire.bad {
   color: var(--danger);
 }
 
-/* 拖动改序：被拖的那条虚化，落点画一条蓝线 */
-.flow-row.dragging {
-  opacity: 0.4;
-}
-.flow-row.dragging .rnode {
-  border-style: dashed;
-}
-.flow-row.drop-before::before,
-.flow-row.drop-after::after {
-  content: '';
-  position: absolute;
-  left: 30px;
-  right: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
-.flow-row.drop-before::before {
-  top: -5px;
-}
-.flow-row.drop-after::after {
-  bottom: -5px;
-}
-
+/* ---- 目标节点 ---- */
 .tnode {
   min-width: 0;
   padding: 6px 9px;
-  border-radius: 9px;
+  border-radius: 8px;
   border: 0.5px solid var(--line);
   background: var(--surface-sunken);
 }
-.tnode.bad {
-  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
-  background: var(--danger-soft);
-}
-.tnode.off {
-  opacity: 0.6;
-}
-.tnode-k {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-.tnode-kind {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-.tnode-kind.bad {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
 .tnode-t {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--t1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .tnode-s {
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 10.5px;
-  line-height: 1.5;
   color: var(--t3);
-}
-.tnode-b {
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-.bk {
-  font-size: 10px;
-  padding: 0 4px;
-  border-radius: 4px;
-  border: 0.5px solid var(--line);
-  background: var(--body-bg);
-  color: var(--t2);
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bk.more {
+.tnode.off {
+  opacity: 0.55;
+}
+.tnode.lb {
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 26%, transparent);
+}
+.tnode.lb .tnode-t {
+  color: var(--ok);
+}
+.tnode.host {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+}
+.tnode.host .tnode-t {
+  color: var(--warn);
+}
+.tnode.static {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+}
+.tnode.static .tnode-t {
+  color: var(--accent);
+}
+.tnode.bad {
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 36%, transparent);
+}
+.tnode.bad .tnode-t {
+  color: var(--danger);
+}
+
+.lane-empty {
+  grid-column: 3 / 6;
+  padding: 4px 2px;
+  font-size: 11.5px;
   color: var(--t3);
 }
 

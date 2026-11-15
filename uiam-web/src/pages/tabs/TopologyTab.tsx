@@ -1,12 +1,28 @@
 /**
  * 路由拓扑（方案 A · 泳道管道图）：入口 → 有序路由链 → 目标/后端。
  *
+ * ## 这张图长什么样（定稿 `prototype` 之外的方案 A 图）
+ *
+ * ```
+ *   入口              路由 · 按顺序匹配，命中即停              目标
+ *  ┌──────┐          ┌────────────────────────┐          ┌──────────────┐
+ *  │ http │          │ ① adm 后台接口          │  ──────▶ │ LB · adm-lb  │
+ *  │ :80  │──┬──────▶│    前缀 /adm            │          │ 2 后端 · 轮询 │
+ *  └──────┘  │       └────────────────────────┘          └──────────────┘
+ *            │       ┌────────────────────────┐          ┌──────────────┐
+ *            └──────▶│ ② dtw 接口              │  ──────▶ │ Host · …     │
+ *                    └────────────────────────┘          └──────────────┘
+ * ```
+ *
+ * 入口是**一个节点盒子**（垂直居中于该组路由），从它右侧出线接一条**竖总线**，
+ * 再由总线横向分叉进每条路由——不是「每行左边一个序号徽标」那种列表。序号圆圈
+ * 在路由卡片**内部**，因为它是卡片身份的一部分，不是外部装饰。
+ *
  * ## 为什么值得画出来
  *
  * gatex 的路由是 first-match-wins：同一监听器下 `sort_no` 小的先匹配，第一条命中就
  * 不再往下走。表格把这个语义藏在一列数字里——「3 比 1 大所以排在后面」得靠脑子翻译；
- * 图里它直接变成**纵向位置**，上下挪一格就是改一条线上流量的去向。这是表格做不到的
- * 那部分信息，也是选这个方案而不是「好看的卡片墙」的唯一理由。
+ * 图里它直接变成**纵向位置**，上下挪一格就是改一条线上流量的去向。
  *
  * ## 拖动改序怎么落库
  *
@@ -19,21 +35,15 @@
  *
  * 见 RouteForm 的说明：那等于把 gatex 的 schema 复制一份到前端。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { api, ApiError } from '../../lib/api'
-import {
-  describeAddrs,
-  describeBalancer,
-  describeMatcher,
-  shadowedBy,
-  toShape,
-} from '../../lib/format'
+import { describeAddrs, describeBalancer, describeMatcher, shadowedBy, toShape } from '../../lib/format'
 import type { Balancer, Listener, Route, RoutePayload } from '../../lib/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { ListenerForm } from '../../components/ListenerForm'
 import { RouteForm } from '../../components/RouteForm'
 import { useToast } from '../../components/Toast'
-import { Badge, Empty, Spinner, cx } from '../../components/ui'
+import { Empty, Spinner, cx } from '../../components/ui'
 import { IconAlert, IconEdit, IconPlus, IconTrash } from '../../components/icons'
 import { RoutesTab } from './RoutesTab'
 
@@ -53,6 +63,17 @@ function payloadOf(route: Route, sortNo: number): RoutePayload {
   }
 }
 
+/** 目标类型决定卡片配色与箭头颜色，所以先判一次，渲染两处共用 */
+type TargetKind = 'lb' | 'host' | 'static' | 'bad'
+
+function targetKind(route: Route, balancers: Map<string, Balancer>): TargetKind {
+  const t = toShape(route.toJson)
+  if (t.type === 'LoadBalancer') return t.name && balancers.has(t.name) ? 'lb' : 'bad'
+  if (t.type === 'Host') return 'host'
+  if (t.type === 'Static') return 'static'
+  return 'bad'
+}
+
 /* ---------------------------------------------------------------- 目标节点 */
 
 function TargetNode({ route, balancers }: { route: Route; balancers: Map<string, Balancer> }) {
@@ -63,75 +84,45 @@ function TargetNode({ route, balancers }: { route: Route; balancers: Map<string,
     if (!lb) {
       return (
         <div className="tnode bad">
-          <div className="tnode-k">
-            <span className="tnode-kind bad">LB</span>
-            <span className="tnode-t mono">{target.name || '（未填名称）'}</span>
-          </div>
-          <div className="tnode-s">库里没有这个名字的负载均衡器，发布会失败</div>
+          <div className="tnode-t">LB · {target.name || '（未填名称）'}</div>
+          <div className="tnode-s">库里没有这个 LB，发布会失败</div>
         </div>
       )
     }
     const info = describeBalancer(lb.configJson)
     return (
-      <div className={cx('tnode', !lb.enabled && 'off')}>
-        <div className="tnode-k">
-          <span className="tnode-kind">LB</span>
-          <span className="tnode-t">{lb.name}</span>
-          {!lb.enabled && <Badge tone="mute">停用</Badge>}
-        </div>
+      <div className={cx('tnode lb', !lb.enabled && 'off')} title={info.backends.join('\n') || undefined}>
+        <div className="tnode-t">LB · {lb.name}</div>
         <div className="tnode-s">
-          {info.type} · {info.backends.length} 个后端
-          {info.algorithm ? ` · ${info.algorithm}` : ''}
+          {info.backends.length} 后端{info.algorithm ? ` · ${info.algorithm}` : ''}
+          {!lb.enabled && ' · 已停用'}
         </div>
-        {info.backends.length > 0 && (
-          <div className="tnode-b">
-            {info.backends.slice(0, 3).map((backend, i) => (
-              <span key={`${backend}-${i}`} className="bk mono">
-                {backend}
-              </span>
-            ))}
-            {info.backends.length > 3 && (
-              <span className="bk more">+{info.backends.length - 3}</span>
-            )}
-          </div>
-        )}
       </div>
     )
   }
 
   if (target.type === 'Host') {
     return (
-      <div className="tnode">
-        <div className="tnode-k">
-          <span className="tnode-kind">HOST</span>
-          <span className="tnode-t mono">{target.addr || '（未填地址）'}</span>
-        </div>
-        <div className="tnode-s">
-          直连，不经负载均衡{target.preserveHost ? ' · 透传原 Host' : ' · 改写 Host'}
-        </div>
+      <div className="tnode host" title={target.preserveHost ? '透传原 Host' : '改写 Host'}>
+        <div className="tnode-t">Host · {target.addr || '（未填地址）'}</div>
+        <div className="tnode-s">直连，不经过 LB</div>
       </div>
     )
   }
 
   if (target.type === 'Static') {
     return (
-      <div className="tnode">
-        <div className="tnode-k">
-          <span className="tnode-kind">STATIC</span>
-          <span className="tnode-t">本地静态文件</span>
-        </div>
-        <div className="tnode-s">{target.spa ? 'SPA 模式：未命中的路径回落 index.html' : '按路径找文件'}</div>
+      <div className="tnode static">
+        <div className="tnode-t">Static · 本地文件</div>
+        <div className="tnode-s">{target.spa ? 'SPA 回退 index.html' : '按路径找文件'}</div>
       </div>
     )
   }
 
   return (
     <div className="tnode bad">
-      <div className="tnode-k">
-        <span className="tnode-kind bad">?</span>
-        <span className="tnode-t">{target.type || '未配置目标'}</span>
-      </div>
-      <div className="tnode-s">to_json 解析不出 type，渲染时会报错</div>
+      <div className="tnode-t">{target.type || '未配置目标'}</div>
+      <div className="tnode-s">to_json 解析不出 type</div>
     </div>
   )
 }
@@ -175,53 +166,68 @@ function Lane({
   onDrop: (route: Route, after: boolean) => void
 }) {
   const addrs = describeAddrs(listener.addrsJson)
+  const span = Math.max(rows.length, 1)
 
   return (
-    <section className="lane">
-      <header className="lane-head">
-        <span className={cx('lane-kind', listener.kind === 1 ? 'http' : 'tcp')}>
-          {listener.kind === 1 ? 'HTTP' : 'TCP'}
-        </span>
-        <span className="lane-addr mono">{addrs.join('  ·  ') || '未配置地址'}</span>
-        {!listener.enabled && <Badge tone="mute">监听器停用</Badge>}
-        {listener.remark && <span className="lane-remark">{listener.remark}</span>}
-        <span className="lane-count">{rows.length} 条路由</span>
-        <span className="lane-tools">
-          <button className="btn btn-ghost btn-sm" onClick={onAddRoute} title="在该监听器下新建路由">
-            <IconPlus size={12} /> 路由
-          </button>
-          <button className="btn btn-ghost btn-sm" onClick={onEditListener} title="编辑监听器">
-            <IconEdit size={12} />
-          </button>
-        </span>
-      </header>
+    <div className="lane" style={{ gridTemplateRows: `repeat(${span}, auto)` }}>
+      {/* 入口：一个节点，垂直居中于它这一组路由 */}
+      <div className="lane-entry" style={{ gridRow: `1 / span ${span}` }}>
+        <div className="le-top">
+          <span className={cx('lane-kind', listener.kind === 1 ? 'http' : 'tcp')}>
+            {listener.kind === 1 ? 'http' : 'tcp'}
+          </span>
+          {!listener.enabled && <span className="le-off">停用</span>}
+          <span className="le-tools">
+            <button className="btn btn-ghost btn-sm" onClick={onAddRoute} title="在该监听器下新建路由">
+              <IconPlus size={11} />
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={onEditListener} title="编辑监听器">
+              <IconEdit size={11} />
+            </button>
+          </span>
+        </div>
+        <div className="le-addrs mono">{addrs.join('\n') || '未配置地址'}</div>
+        {listener.remark && <div className="le-remark">{listener.remark}</div>}
+      </div>
 
-      <div className="lane-flow">
-        {rows.length === 0 && (
-          <p className="lane-empty">还没有路由：该监听器收到的请求会全部落到 404。</p>
-        )}
+      {rows.length === 0 && (
+        <p className="lane-empty">还没有路由：该监听器收到的请求会全部落到 404。</p>
+      )}
 
-        {rows.map((route, i) => {
-          const prev = i > 0 ? rows[i - 1] : undefined
-          const shadowed = prev ? shadowedBy(prev.matcherJson, route.matcherJson) && prev.enabled && route.enabled : false
-          const target = toShape(route.toJson)
-          const broken =
-            target.type === '' ||
-            (target.type === 'LoadBalancer' && !(target.name && balancers.has(target.name)))
-          const isDragging = drag?.id === route.id
-          const dropHere =
-            drop && drop.id === route.id && drag?.id !== route.id ? drop : null
+      {rows.map((route, i) => {
+        const prev = i > 0 ? rows[i - 1] : undefined
+        const shadowed = Boolean(
+          prev && prev.enabled && route.enabled && shadowedBy(prev.matcherJson, route.matcherJson),
+        )
+        const kind = targetKind(route, balancers)
+        const isDragging = drag?.id === route.id
+        const dropHere = drop && drop.id === route.id && drag?.id !== route.id ? drop : null
 
-          return (
+        return (
+          <Fragment key={route.id}>
+            {/* 总线上的一个节点：竖线（吃掉行距保持连续）+ 分叉进路由的箭头。
+                这里的线是中性灰——只有「路由 → 目标」那段才按目标类型上色，
+                否则一条路由的入口分支会跟着它的目标变绿，读起来像是两种语义。 */}
+            <span
+              className={cx('lane-stub', i === 0 && 'first', i === rows.length - 1 && 'last')}
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 22 8" width="22" height="8" className="wire">
+                <line x1="11" y1="4" x2="15" y2="4" stroke="currentColor" strokeWidth="1.1" />
+                <path d="M15 1.2 21 4 15 6.8Z" fill="currentColor" />
+              </svg>
+            </span>
+
             <div
-              key={route.id}
               className={cx(
-                'flow-row',
+                'rnode',
+                i === 0 && 'first',
                 !route.enabled && 'off',
                 isDragging && 'dragging',
                 dropHere && (dropHere.after ? 'drop-after' : 'drop-before'),
               )}
               draggable={!busy}
+              onClick={() => onEditRoute(route)}
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = 'move'
                 // Firefox 不设 data 就不给拖
@@ -242,75 +248,56 @@ function Lane({
                 onDrop(route, e.clientY - rect.top > rect.height / 2)
               }}
             >
-              <span className="flow-n" title={`第 ${i + 1} 位匹配（sort_no 已重排为 ${i + 1}）`}>
+              <span className="rnode-n" title={`第 ${i + 1} 位匹配`}>
                 {i + 1}
               </span>
-
-              <div className="rnode" onClick={() => onEditRoute(route)}>
-                <div className="rnode-h">
-                  <span className="rnode-t">{route.name}</span>
-                  {!route.enabled && <Badge tone="mute">停用</Badge>}
-                  <span className="rnode-tools">
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      title="编辑"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onEditRoute(route)
-                      }}
-                    >
-                      <IconEdit size={12} />
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm danger"
-                      title="删除"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteRoute(route)
-                      }}
-                    >
-                      <IconTrash size={12} />
-                    </button>
-                  </span>
+              <div className="rnode-main">
+                <div className="rnode-t">
+                  <span className="rnode-name">{route.name}</span>
+                  {!route.enabled && <span className="rnode-off">停用</span>}
+                  {route.logJson && <span className="rnode-off" title="单独配了 log_json">记日志</span>}
                 </div>
-                <div className="rnode-b">
-                  <span className="rnode-k">匹配</span>
-                  <span className="rnode-v mono">{describeMatcher(route.matcherJson)}</span>
-                  {(route.logJson || route.sortNo !== i + 1) && (
-                    <span className="rnode-meta">
-                      {route.logJson && <span title="这条路由单独配了 log_json">记日志</span>}
-                      {route.sortNo !== i + 1 && (
-                        <span title="库里的 sort_no 与当前位置不一致，拖动一次会重排成 1…n">
-                          sort_no={route.sortNo}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </div>
+                <div className="rnode-m mono">{describeMatcher(route.matcherJson)}</div>
                 {shadowed && (
                   <div className="rnode-warn">
-                    上一条 <b>{describeMatcher(prev?.matcherJson)}</b> 已经覆盖这个路径，这条永远命中不到
+                    上一条 <b>{describeMatcher(prev?.matcherJson)}</b> 已覆盖这个路径，永远命中不到
                   </div>
                 )}
               </div>
-
-              <svg
-                className={cx('wire', broken && 'bad')}
-                viewBox="0 0 28 8"
-                width="28"
-                height="8"
-                aria-hidden="true"
-              >
-                <line x1="1" y1="4" x2="19" y2="4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                <path d="M19 1.2 26 4 19 6.8Z" fill="currentColor" />
-              </svg>
-
-              <TargetNode route={route} balancers={balancers} />
+              <span className="rnode-tools">
+                <button
+                  className="btn btn-ghost btn-sm"
+                  title="编辑"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onEditRoute(route)
+                  }}
+                >
+                  <IconEdit size={11} />
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm danger"
+                  title="删除"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteRoute(route)
+                  }}
+                >
+                  <IconTrash size={11} />
+                </button>
+              </span>
             </div>
-          )
-        })}
-      </div>
-    </section>
+
+            <svg className={cx('wire', kind)} viewBox="0 0 24 8" width="24" height="8" aria-hidden="true">
+              <line x1="1" y1="4" x2="17" y2="4" stroke="currentColor" strokeWidth="1.1" />
+              <path d="M17 1.2 23 4 17 6.8Z" fill="currentColor" />
+            </svg>
+
+            <TargetNode route={route} balancers={balancers} />
+          </Fragment>
+        )
+      })}
+    </div>
   )
 }
 
@@ -348,10 +335,7 @@ export function TopologyTab({
   const [listenerFormOpen, setListenerFormOpen] = useState(false)
   const [editingListener, setEditingListener] = useState<Listener | null>(null)
 
-  const lbByName = useMemo(
-    () => new Map(balancers.map((b) => [b.name, b])),
-    [balancers],
-  )
+  const lbByName = useMemo(() => new Map(balancers.map((b) => [b.name, b])), [balancers])
 
   const lanes = useMemo(
     () =>
@@ -361,9 +345,7 @@ export function TopologyTab({
         const order = new Map(pending.ids.map((id, i) => [id, i]))
         return {
           listener,
-          rows: [...rows].sort(
-            (a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99),
-          ),
+          rows: [...rows].sort((a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99)),
         }
       }),
     [listeners, routes, pending],
@@ -383,8 +365,7 @@ export function TopologyTab({
     for (const { rows } of lanes) {
       rows.forEach((route, i) => {
         if (!route.enabled) disabled += 1
-        const target = toShape(route.toJson)
-        if (target.type === 'LoadBalancer' && !(target.name && lbByName.has(target.name))) missing += 1
+        if (targetKind(route, lbByName) === 'bad') missing += 1
         const prev = i > 0 ? rows[i - 1] : undefined
         if (prev && prev.enabled && route.enabled && shadowedBy(prev.matcherJson, route.matcherJson)) {
           shadowed += 1
@@ -486,12 +467,7 @@ export function TopologyTab({
     return (
       <div className="topo">
         {bar}
-        <RoutesTab
-          listeners={listeners}
-          routes={routes}
-          loading={loading}
-          onChanged={onChanged}
-        />
+        <RoutesTab listeners={listeners} routes={routes} loading={loading} onChanged={onChanged} />
       </div>
     )
   }
@@ -522,10 +498,12 @@ export function TopologyTab({
   return (
     <div className="topo">
       {bar}
-      <p className="topo-hint">
-        从左到右是一条请求的去向；同一泳道内<b>从上到下依次匹配，第一条命中即生效</b>。
-        拖动卡片上下挪动就能改顺序{busy && <span className="busy"> · 保存中…</span>}
-      </p>
+
+      <div className="topo-cols">
+        <span className="c-entry">入口</span>
+        <span className="c-route">路由 · 按顺序匹配，命中即停</span>
+        <span className="c-target">目标</span>
+      </div>
 
       <div className="topo-lanes">
         {lanes.map(({ listener, rows }) => (
@@ -566,7 +544,8 @@ export function TopologyTab({
       </div>
 
       <p className="topo-legend">
-        改序会把整条泳道重排成 1…n 并逐条保存；发一次发布才会真正影响线上。
+        拖动路由卡片 = 改 sort_no；第 1 条命中即停止，所以顺序是语义不是排版。
+        改序会把整条泳道重排成 1…n 并逐条保存，发一次发布才会真正影响线上。
       </p>
 
       <RouteForm
