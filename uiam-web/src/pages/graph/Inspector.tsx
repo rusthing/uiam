@@ -1,11 +1,13 @@
 /**
  * 右侧属性栏：图里点中谁，这里就显示谁。
  *
- * 只做两件事：**看得清**（类型、关键字段、和谁有关系）和**改得动最常见的那个字段**
- * （名称）。地址 / matcher / to / config 这些结构性字段仍然走弹窗——它们是 JSON，
- * 在 260px 宽的栏里编辑只会互相折磨。启停也不在这里：它挂在卡片右上角。
+ * **只读**。编辑 / 删除 / 加目标这些动作一律长在卡片右上角的操作栏上——属性栏是
+ * 「看清楚这是什么」，不是第二个操作台。之前把动作放在这里，结果是「图里点不到，
+ * 得先选中再跑来看右边」，多一步而且反直觉。
+ *
+ * 所以这里只做一件事：把这个对象的字段、和谁有关系、以及哪些写法线上其实不生效
+ * 摆出来（`uri` 里 gatex 不认识的键、悬空的 LB 引用、渲染时补的默认值）。
  */
-import { useEffect, useState } from 'react'
 import {
   describeAddrs,
   describeBalancer,
@@ -20,7 +22,6 @@ import {
   unknownUriKeys,
 } from '../../lib/format'
 import type { Balancer, Gateway, Listener, Route } from '../../lib/types'
-import { IconEdit, IconTrash } from '../../components/icons'
 import { Badge, cx } from '../../components/ui'
 import type { Selection } from './GatewayGraph'
 import { globalSections } from './global'
@@ -34,43 +35,6 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-/** 名称就地改：回车或失焦提交，Esc 撤销 */
-function NameField({
-  value,
-  onCommit,
-  mono,
-}: {
-  value: string
-  onCommit: (next: string) => void
-  mono?: boolean
-}) {
-  const [text, setText] = useState(value)
-  useEffect(() => setText(value), [value])
-  const commit = () => {
-    const next = text.trim()
-    if (!next || next === value) {
-      setText(value)
-      return
-    }
-    onCommit(next)
-  }
-  return (
-    <input
-      className={cx('input !h-8', mono && 'mono')}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur()
-        if (e.key === 'Escape') {
-          setText(value)
-          e.currentTarget.blur()
-        }
-      }}
-    />
-  )
-}
-
 export function Inspector({
   gateway,
   selection,
@@ -78,9 +42,6 @@ export function Inspector({
   routes,
   balancers,
   onSelect,
-  onRename,
-  onEdit,
-  onDelete,
 }: {
   gateway: Gateway
   selection: Selection | null
@@ -88,9 +49,6 @@ export function Inspector({
   routes: Route[]
   balancers: Balancer[]
   onSelect: (sel: Selection) => void
-  onRename: (sel: Selection, name: string) => void
-  onEdit: (sel: Selection) => void
-  onDelete: (sel: Selection) => void
 }) {
   if (!selection) {
     return (
@@ -99,7 +57,7 @@ export function Inspector({
           <p className="ins-empty-t">点一下图里的卡片</p>
           <p className="ins-empty-d">
             监听器、路由、负载均衡器、后端都能点。这里会显示它的字段、和谁有关系，
-            以及最快的编辑入口。
+            以及哪些写法线上其实不生效。改动在卡片右上角的操作栏上。
           </p>
           <ul className="ins-legend">
             <li>
@@ -156,12 +114,6 @@ export function Inspector({
             <div className="ins-code">{sec.raw}</div>
           </section>
         )}
-
-        <footer className="ins-actions">
-          <button className="btn btn-sm" onClick={() => onEdit(selection)}>
-            <IconEdit size={12} /> 编辑实例高级配置
-          </button>
-        </footer>
       </aside>
     )
   }
@@ -218,15 +170,6 @@ export function Inspector({
           <summary>原始 JSON（addrs_json）</summary>
           <div className="ins-code">{prettyJson(listener.addrsJson)}</div>
         </details>
-
-        <footer className="ins-actions">
-          <button className="btn btn-sm" onClick={() => onEdit(selection)}>
-            <IconEdit size={12} /> 编辑
-          </button>
-          <button className="btn btn-sm btn-ghost ins-del" onClick={() => onDelete(selection)}>
-            <IconTrash size={12} /> 删除
-          </button>
-        </footer>
       </aside>
     )
   }
@@ -250,7 +193,7 @@ export function Inspector({
             {route.enabled ? <Badge tone="ok">启用</Badge> : <Badge tone="mute">停用</Badge>}
             {lbName && !lb && <Badge tone="danger">LB 不存在</Badge>}
           </div>
-          <NameField value={route.name} onCommit={(next) => onRename(selection, next)} />
+          <div className="ins-name">{route.name}</div>
           <p className="ins-note">顺序 {index + 1} / {siblings.length}：前面的先匹配，命中即停。</p>
         </header>
 
@@ -318,15 +261,6 @@ export function Inspector({
           <div className="ins-code">to = {prettyJson(route.toJson)}</div>
           <div className="ins-code">log = {prettyJson(route.logJson) || '（未配置）'}</div>
         </details>
-
-        <footer className="ins-actions">
-          <button className="btn btn-sm" onClick={() => onEdit(selection)}>
-            <IconEdit size={12} /> 编辑
-          </button>
-          <button className="btn btn-sm btn-ghost ins-del" onClick={() => onDelete(selection)}>
-            <IconTrash size={12} /> 删除
-          </button>
-        </footer>
       </aside>
     )
   }
@@ -344,7 +278,7 @@ export function Inspector({
             负载均衡器
             {balancer.enabled ? <Badge tone="ok">启用</Badge> : <Badge tone="mute">停用</Badge>}
           </div>
-          <NameField value={balancer.name} mono onCommit={(next) => onRename(selection, next)} />
+          <div className="ins-name mono">{balancer.name}</div>
           <p className="ins-note">名字是被路由引用的键，改名后原来引用它的路由会变成悬空。</p>
         </header>
 
@@ -405,15 +339,6 @@ export function Inspector({
           <summary>原始 JSON（config_json）</summary>
           <div className="ins-code">{prettyJson(balancer.configJson)}</div>
         </details>
-
-        <footer className="ins-actions">
-          <button className="btn btn-sm" onClick={() => onEdit(selection)}>
-            <IconEdit size={12} /> 编辑
-          </button>
-          <button className="btn btn-sm btn-ghost ins-del" onClick={() => onDelete(selection)}>
-            <IconTrash size={12} /> 删除
-          </button>
-        </footer>
       </aside>
     )
   }
@@ -459,16 +384,6 @@ export function Inspector({
           ))}
         </section>
       )}
-
-      <footer className="ins-actions">
-        <button
-          className="btn btn-sm"
-          disabled={!balancer}
-          onClick={() => balancer && onEdit({ kind: 'balancer', id: balancer.id })}
-        >
-          <IconEdit size={12} /> 编辑所属 LB
-        </button>
-      </footer>
     </aside>
   )
 }

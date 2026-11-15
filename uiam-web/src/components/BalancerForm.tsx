@@ -48,7 +48,8 @@ export function BalancerForm({
   /** 为空表示新建 */
   balancer?: Balancer | null
   onClose: () => void
-  onSaved: () => void
+  /** 带回保存后的实体：「新建并连上路由」要靠它拿到新 id/名字 */
+  onSaved: (saved?: Balancer) => void
 }) {
   const toast = useToast()
   const [form, setForm] = useState<FormState>({
@@ -89,11 +90,12 @@ export function BalancerForm({
         }
     setSaving(true)
     try {
-      if (balancer) await api.balancer.update(payload)
-      else await api.balancer.add(payload)
+      const saved = balancer
+        ? await api.balancer.update(payload)
+        : await api.balancer.add(payload)
       toast.success(balancer ? '负载均衡器已保存' : '负载均衡器已创建')
       onClose()
-      onSaved()
+      onSaved(saved)
     } catch (e) {
       toast.error((e as ApiError).message)
     } finally {

@@ -69,6 +69,55 @@ export const IconImport = (p: Props) => (
   </Svg>
 )
 
+/** 导出：与 IconImport 方向相反——一个是把外面拉进来，一个是把里面拿出来 */
+export const IconDownload = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 3v12M7 10l5 5 5-5" />
+    <path d="M5 21h14" />
+  </Svg>
+)
+
+export const IconMinus = (p: Props) => (
+  <Svg {...p}>
+    <path d="M5 12h14" />
+  </Svg>
+)
+
+/** 适应窗口：四角向内收 */
+export const IconFit = (p: Props) => (
+  <Svg {...p}>
+    <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+  </Svg>
+)
+
+/** 预览图（缩略图） */
+export const IconMap = (p: Props) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <path d="M8 3v18M3 9h18" />
+  </Svg>
+)
+
+export const IconChevronLeft = (p: Props) => (
+  <Svg {...p}>
+    <path d="m15 18-6-6 6-6" />
+  </Svg>
+)
+
+export const IconChevronDown = (p: Props) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+)
+
+/** 连线到目标：箭头指向一个方框 */
+export const IconLink = (p: Props) => (
+  <Svg {...p}>
+    <rect x="13" y="8" width="8" height="8" rx="1.6" />
+    <path d="M3 12h7M8 9l3 3-3 3" />
+  </Svg>
+)
+
 export const IconUndo = (p: Props) => (
   <Svg {...p}>
     <path d="M3 7v6h6" />
