@@ -5,3 +5,4 @@ pub use super::uiam_gateway_balancer::Entity as UiamGatewayBalancer;
 pub use super::uiam_gateway_listener::Entity as UiamGatewayListener;
 pub use super::uiam_gateway_release::Entity as UiamGatewayRelease;
 pub use super::uiam_gateway_route::Entity as UiamGatewayRoute;
+pub use super::uiam_user_pref::Entity as UiamUserPref;

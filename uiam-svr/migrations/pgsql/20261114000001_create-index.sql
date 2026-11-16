@@ -19,3 +19,6 @@ CREATE INDEX idx_uiam_gateway_balancer_gateway
 
 CREATE INDEX idx_uiam_gateway_release_gateway_create
     ON uiam_gateway_release USING btree (gateway_id, create_ms DESC);
+
+CREATE INDEX idx_uiam_user_pref_user
+    ON uiam_user_pref USING btree (user_id);

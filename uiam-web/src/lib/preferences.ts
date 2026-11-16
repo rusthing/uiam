@@ -1,16 +1,15 @@
 /**
- * 偏好存储：一层可插拔的读写口，默认落 localStorage，配了远端地址才走服务端。
+ * 偏好存储：一层可插拔的读写口，本地优先、远端同步。
  *
- * 为什么不直接 new 一个 class：uiam-svr 目前只有网关相关的 8 组接口，**没有偏好
- * 设置接口**（见 `uiam-svr/src/web/router/`）。所以这里做的是「本地优先 + 可选远端
- * 同步」：各模块只管同步读写，远端 GET 成功时把快照写回本地并广播一次，PUT 失败
- * 静默回退，界面永远不会被网络拖住，也不假装后端已经存在。
+ * 为什么不直接 new 一个 class：界面读偏好是同步的，落盘也必须是同步的；网络只能
+ * 是后台增强。所以这里做的是「本地优先 + 远端同步」：各模块只管同步读写，远端 GET
+ * 成功时把快照写回本地并广播一次，PUT 失败静默回退，界面永远不会被网络拖住。
  *
- * 远端契约（只有配置了 `VITE_PREFERENCES_URL` 才启用）：
- *   GET  <url>                 → `{ "uiam-desktop": ..., "uiam-widget-appearance": ..., "uiam-site": ... }`
- *   PUT  <url>  + X-User-Id   → 同一份快照；服务端自己决定按用户隔离
+ * 远端契约（默认指向 uiam-svr 的 `/uiam/preferences`，可用 `VITE_PREFERENCES_URL` 覆盖）：
+ *   GET  <url>                → `{ "prefs": { "uiam-desktop": ..., ... } }`
+ *   PUT  <url>  + X-User-Id  → 同一份快照；服务端按 `user_id` 隔离
  */
-import { getOperatorId } from './api'
+import { API_BASE, getOperatorId } from './api'
 
 /** 我们管的 key。theme / operator 有各自的历史格式，不在这里动，避免破坏旧数据 */
 export const PREF_KEYS = [
@@ -22,7 +21,16 @@ export const PREF_KEYS = [
 
 export type PrefKey = (typeof PREF_KEYS)[number]
 
-const REMOTE_URL = (import.meta.env.VITE_PREFERENCES_URL ?? '').replace(/\/+$/, '')
+/**
+ * 偏好接口默认就落在 uiam-svr：
+ * - 开发态 `API_BASE` 为空，Vite 把 `/uiam/preferences` 反代到 uiam-svr；
+ * - 生产态 `API_BASE=/uiam-svr`，走网关前缀；
+ * - `VITE_PREFERENCES_URL` 仍可覆盖（比如接独立的配置中心）。
+ *
+ * 远端不可达时读写都退回 localStorage，不阻塞桌面。
+ */
+const CONFIGURED_URL = (import.meta.env.VITE_PREFERENCES_URL ?? '').trim()
+const REMOTE_URL = (CONFIGURED_URL || `${API_BASE}/uiam/preferences`).replace(/\/+$/, '')
 const listeners = new Set<() => void>()
 
 /** 订阅偏好变化：本地写入、远端 hydrate、其它标签页的 storage 事件都会触发 */
@@ -84,7 +92,8 @@ function schedulePush() {
     void fetch(REMOTE_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': getOperatorId() },
-      body: JSON.stringify(snapshot()),
+      // 服务端契约：{ prefs: { "uiam-desktop": ..., ... } }
+      body: JSON.stringify({ prefs: snapshot() }),
     }).catch(() => {
       // 配置中心不可达就只保留本地，不弹错：桌面是看状态的地方，不是报错的地方
     })
@@ -100,7 +109,8 @@ export async function initPreferences(): Promise<void> {
   try {
     const res = await fetch(REMOTE_URL, { headers: { 'X-User-Id': getOperatorId() } })
     if (!res.ok) return
-    const data = (await res.json()) as Record<string, unknown> | null
+    const payload = (await res.json()) as { prefs?: Record<string, unknown> } | null
+    const data = payload?.prefs
     if (!data || typeof data !== 'object') return
     let changed = false
     for (const key of PREF_KEYS) {

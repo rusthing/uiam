@@ -1,13 +1,13 @@
 /**
- * 桌面组件布局：尺寸族、默认排布、持久化与旧数据迁移。
+ * 桌面组件布局：尺寸族、自由坐标、持久化与旧数据迁移。
  *
- * 之前是「任意 w/h 格数」+ 4 列拉伸网格，1×1 会变成 336×132 的扁条；现在改成
- * Apple 的 system family：small(1×1 正方形) / medium(2×1) / large(2×2) /
- * extra large(4×2)，单元固定 `--wg-unit` 正方形，尺寸族只允许这四种组合。
+ * 桌面是 macOS 式的**自由摆放**：每个组件始终带 `x/y` 网格坐标，不再走
+ * `grid-auto-flow` 自动铺满。拖动直接改坐标，位置存本地并（可选）同步到
+ * uiam-svr。`packItems` 负责默认排布与新增组件的落位，`nearestFree` 负责
+ * 拖动落点被占用时就近找空位——两者都保证组件不重叠。
  *
- * 布局默认仍是**有序数组**（CSS Grid dense 紧凑排布）；`free === true` 时组件带
- * `x/y` 网格坐标，走绝对定位 + 吸附。两种形态共用一份数据，旧数组格式自动迁移，
- * 用户摆好的桌面不会因为升级被清空。
+ * 旧数据（v1 纯数组 / v2 `{ free, items }`）自动迁移成 v3：顺序保留，已有的
+ * `x/y` 保留，缺失的按顺序补坐标，用户摆好的桌面不会因为升级被清空。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { readPref, subscribePrefs, writePref } from '../lib/preferences'
@@ -47,21 +47,19 @@ export interface WidgetDef {
 export interface LayoutItem {
   id: WidgetId
   size: WidgetSize
-  /** 自由摆放模式下的网格坐标（0 基） */
-  x?: number
-  y?: number
+  /** 自由摆放的网格坐标（0 基） */
+  x: number
+  y: number
 }
 
-/** 小组件中心拖放落点：自由摆放读 x/y，紧凑排布读 beforeId（null = 追加末尾） */
+/** 小组件中心拖放落点：拖到哪就放在哪附近 */
 export interface AddAt {
   x?: number
   y?: number
-  beforeId?: WidgetId | null
 }
 
 interface LayoutState {
-  version: 2
-  free: boolean
+  version: 3
   items: LayoutItem[]
 }
 
@@ -100,7 +98,8 @@ export const WIDGET_DEFS: Record<WidgetId, WidgetDef> = {
   },
 }
 
-const DEFAULT_ITEMS: LayoutItem[] = [
+/** 默认顺序：只描述「放什么、多大」，坐标由 `packItems` 生成 */
+const DEFAULT_ORDER: Array<Pick<LayoutItem, 'id' | 'size'>> = [
   { id: 'clock', size: 'medium' },
   { id: 'count', size: 'small' },
   { id: 'enabled', size: 'small' },
@@ -111,7 +110,115 @@ const DEFAULT_ITEMS: LayoutItem[] = [
   { id: 'attention', size: 'medium' },
 ]
 
+/** 默认按 4 列摆；实际列数更少时由渲染层裁剪 */
+const DEFAULT_COLUMNS = 4
+
 const KEY = 'uiam-desktop' as const
+
+interface Rect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function collides(a: Rect, b: Rect) {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+}
+
+function fits(occupied: Rect[], rect: Rect) {
+  return !occupied.some((other) => collides(other, rect))
+}
+
+function clampX(x: number, w: number, columns: number) {
+  return Math.max(0, Math.min(x, Math.max(0, columns - w)))
+}
+
+/** 尺寸 → 当前列数下的实际格数；窄屏不会让 4 列组件溢出容器 */
+export function gridOf(size: WidgetSize, columns: number): { w: number; h: number } {
+  const { w, h } = SIZE_FAMILY[size]
+  return { w: Math.max(1, Math.min(w, Math.max(1, columns))), h }
+}
+
+/** row-major 找第一个能放下的位置；放不下就继续往下扩行 */
+function firstFree(occupied: Rect[], w: number, h: number, columns: number) {
+  const cols = Math.max(1, columns)
+  const width = Math.min(w, cols)
+  const limit = Math.max(occupied.length, 1) * 4 + 32
+  for (let y = 0; y < limit; y += 1) {
+    for (let x = 0; x <= cols - width; x += 1) {
+      if (fits(occupied, { x, y, w: width, h })) return { x, y }
+    }
+  }
+  return { x: 0, y: limit }
+}
+
+/**
+ * 从落点向外按曼哈顿距离找最近的空位。
+ * 落点本身可用时原样返回，拖动手感不会「一跳就到角落」。
+ */
+export function nearestFree(
+  occupied: Rect[],
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+  columns: number,
+): { x: number; y: number } {
+  const cols = Math.max(1, columns)
+  const width = Math.min(w, cols)
+  const targetX = clampX(x, width, cols)
+  const targetY = Math.max(0, y)
+  if (fits(occupied, { x: targetX, y: targetY, w: width, h })) {
+    return { x: targetX, y: targetY }
+  }
+
+  const maxY = Math.max(targetY, ...occupied.map((rect) => rect.y + rect.h)) + 24
+  let best: { x: number; y: number } | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (let yy = 0; yy <= maxY; yy += 1) {
+    for (let xx = 0; xx <= cols - width; xx += 1) {
+      if (!fits(occupied, { x: xx, y: yy, w: width, h })) continue
+      const distance = Math.abs(xx - targetX) + Math.abs(yy - targetY)
+      if (distance < bestDistance) {
+        best = { x: xx, y: yy }
+        bestDistance = distance
+      }
+    }
+  }
+  return best ?? firstFree(occupied, width, h, cols)
+}
+
+/** 已有组件的占位矩形；`exceptId` 用于移动/改尺寸时排除自己 */
+function occupiedOf(items: LayoutItem[], exceptId: WidgetId | null, columns: number): Rect[] {
+  return items
+    .filter((it) => it.id !== exceptId)
+    .map((it) => {
+      const { w, h } = gridOf(it.size, columns)
+      return { x: clampX(it.x, w, columns), y: Math.max(0, it.y), w, h }
+    })
+}
+
+/** 按数组顺序做 first-fit 排布；用于默认布局与新增组件 */
+export function packItems(
+  order: Array<Pick<LayoutItem, 'id' | 'size'>>,
+  columns = DEFAULT_COLUMNS,
+): LayoutItem[] {
+  const occupied: Rect[] = []
+  const placed: LayoutItem[] = []
+  for (const item of order) {
+    const { w, h } = gridOf(item.size, columns)
+    const spot = firstFree(occupied, w, h, columns)
+    placed.push({ id: item.id, size: item.size, x: spot.x, y: spot.y })
+    occupied.push({ ...spot, w, h })
+  }
+  return placed
+}
+
+const DEFAULT_STATE: LayoutState = {
+  version: 3,
+  items: packItems(DEFAULT_ORDER, DEFAULT_COLUMNS),
+}
 
 /** 旧的 w/h 格数 → 新尺寸族。3×1、4×1 这类不存在的组合归到最接近的一档 */
 function legacySize(w: number, h: number): WidgetSize {
@@ -121,63 +228,88 @@ function legacySize(w: number, h: number): WidgetSize {
   return 'small'
 }
 
+interface RawItem {
+  id?: unknown
+  size?: unknown
+  x?: unknown
+  y?: unknown
+  w?: unknown
+  h?: unknown
+}
+
+/**
+ * 把任意来源的条目整理成合法布局：
+ * 去重、修正尺寸、缺失/冲突的坐标按顺序补空位。
+ */
+function sanitizeItems(raw: unknown, keepCoords: boolean): LayoutItem[] | null {
+  if (!Array.isArray(raw)) return null
+  const seen = new Set<string>()
+  const picked: LayoutItem[] = []
+  for (const entry of raw as RawItem[]) {
+    const id = entry?.id as WidgetId
+    if (!WIDGET_DEFS[id] || seen.has(id)) continue
+    seen.add(id)
+    const def = WIDGET_DEFS[id]
+    const size = def.sizes.includes(entry.size as WidgetSize)
+      ? (entry.size as WidgetSize)
+      : def.size
+    const hasCoords =
+      keepCoords && Number.isInteger(entry.x) && Number.isInteger(entry.y)
+    picked.push({
+      id,
+      size,
+      x: hasCoords ? Math.max(0, entry.x as number) : -1,
+      y: hasCoords ? Math.max(0, entry.y as number) : -1,
+    })
+  }
+  if (picked.length === 0) return null
+
+  const occupied: Rect[] = []
+  const items: LayoutItem[] = []
+  for (const item of picked) {
+    const { w, h } = gridOf(item.size, DEFAULT_COLUMNS)
+    const hasSpot =
+      item.x >= 0 &&
+      item.y >= 0 &&
+      fits(occupied, { x: clampX(item.x, w, DEFAULT_COLUMNS), y: item.y, w, h })
+    const spot = hasSpot
+      ? { x: clampX(item.x, w, DEFAULT_COLUMNS), y: item.y }
+      : firstFree(occupied, w, h, DEFAULT_COLUMNS)
+    items.push({ ...item, ...spot })
+    occupied.push({ ...spot, w, h })
+  }
+  return items
+}
+
 function normalizeState(raw: unknown): LayoutState {
-  // v2：{ version, free, items }
+  // v2/v3：{ version, free?, items }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    const state = raw as Partial<LayoutState>
-    if (Array.isArray(state.items)) {
-      const seen = new Set<string>()
-      const items = state.items
-        .filter((it): it is LayoutItem => Boolean(it && WIDGET_DEFS[it.id as WidgetId]))
-        .map((it) => {
-          const def = WIDGET_DEFS[it.id]
-          return {
-            id: it.id,
-            size: def.sizes.includes(it.size) ? it.size : def.size,
-            ...(Number.isInteger(it.x) && Number.isInteger(it.y)
-              ? { x: Math.max(0, it.x!), y: Math.max(0, it.y!) }
-              : {}),
-          }
-        })
-        .filter((it) => {
-          if (seen.has(it.id)) return false
-          seen.add(it.id)
-          return true
-        })
-      return { version: 2, free: state.free === true, items }
-    }
+    const state = raw as { version?: unknown; free?: unknown; items?: unknown }
+    // v2 的 free:false 代表「紧凑顺序」，升级后按数组顺序重新排；free:true 保留坐标
+    const keepCoords = state.free !== false
+    const items = sanitizeItems(state.items, keepCoords)
+    if (items) return { version: 3, items }
   }
   // v1：纯数组 [{ id, w, h }]
   if (Array.isArray(raw)) {
-    const seen = new Set<string>()
-    const items = raw
-      .filter((it) => it && WIDGET_DEFS[it.id as WidgetId])
-      .map((it) => ({
-        id: it.id as WidgetId,
-        size: legacySize(Number(it.w) || 1, Number(it.h) || 1),
-      }))
-      .filter((it) => {
-        if (seen.has(it.id)) return false
-        seen.add(it.id)
-        return true
-      })
-    if (items.length) return { version: 2, free: false, items }
+    const items = sanitizeItems(
+      (raw as RawItem[]).map((entry) => ({
+        id: entry?.id,
+        size: legacySize(Number(entry?.w) || 1, Number(entry?.h) || 1),
+      })),
+      false,
+    )
+    if (items) return { version: 3, items }
   }
-  return { version: 2, free: false, items: DEFAULT_ITEMS }
+  return DEFAULT_STATE
 }
 
 function load(): LayoutState {
   try {
     return normalizeState(readPref<unknown>(KEY, null))
   } catch {
-    return { version: 2, free: false, items: DEFAULT_ITEMS }
+    return DEFAULT_STATE
   }
-}
-
-/** 尺寸族 → 实际格数；窄屏时把宽度收敛到可用列数，避免 4 列组件溢出容器 */
-export function gridOf(size: WidgetSize, columns: number): { w: number; h: number } {
-  const { w, h } = SIZE_FAMILY[size]
-  return { w: Math.max(1, Math.min(w, Math.max(1, columns))), h }
 }
 
 export function useWidgetLayout() {
@@ -192,90 +324,90 @@ export function useWidgetLayout() {
   }, [])
 
   /**
-   * 添加组件。`at` 来自小组件中心的拖放：自由摆放按 x/y 定位，紧凑排布按
-   * beforeId 插入（缺省追加末尾）。一次 update 写完，避免 add + move 两次
-   * setState 被批处理成只落地后者。
+   * 添加组件。`at` 来自小组件中心的拖放：落到指针所在格，被占用时就近挪空位；
+   * 没给落点就接在默认顺序后面。
    */
-  const add = useCallback((id: WidgetId, size?: WidgetSize, at?: AddAt) => {
-    update((prev) => {
-      if (prev.items.some((it) => it.id === id)) return prev
-      const def = WIDGET_DEFS[id]
-      const chosen = size && def.sizes.includes(size) ? size : def.size
-      const item: LayoutItem = { id, size: chosen }
-      if (prev.free && Number.isInteger(at?.x) && Number.isInteger(at?.y)) {
-        item.x = Math.max(0, at!.x!)
-        item.y = Math.max(0, at!.y!)
-      }
-      const items = [...prev.items]
-      const idx = at?.beforeId ? items.findIndex((it) => it.id === at.beforeId) : -1
-      if (idx >= 0) items.splice(idx, 0, item)
-      else items.push(item)
-      return { ...prev, items }
-    })
-  }, [update])
+  const add = useCallback(
+    (id: WidgetId, size?: WidgetSize, at?: AddAt, columns = DEFAULT_COLUMNS) => {
+      update((prev) => {
+        if (prev.items.some((it) => it.id === id)) return prev
+        const def = WIDGET_DEFS[id]
+        const chosen = size && def.sizes.includes(size) ? size : def.size
+        const { w, h } = gridOf(chosen, columns)
+        const occupied = occupiedOf(prev.items, null, columns)
+        const spot =
+          Number.isInteger(at?.x) && Number.isInteger(at?.y)
+            ? nearestFree(occupied, w, h, at!.x!, at!.y!, columns)
+            : firstFree(occupied, w, h, columns)
+        return {
+          version: 3,
+          items: [...prev.items, { id, size: chosen, x: spot.x, y: spot.y }],
+        }
+      })
+    },
+    [update],
+  )
 
   const remove = useCallback((id: WidgetId) => {
     update((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== id) }))
   }, [update])
 
-  const setSize = useCallback((id: WidgetId, size: WidgetSize) => {
-    update((prev) => ({
-      ...prev,
-      items: prev.items.map((it) =>
-        it.id === id && WIDGET_DEFS[id].sizes.includes(size) ? { ...it, size } : it,
-      ),
-    }))
-  }, [update])
+  /** 尺寸变化后原地放不下就挪到最近空位 */
+  const placeAtSize = useCallback(
+    (items: LayoutItem[], id: WidgetId, size: WidgetSize, columns: number): LayoutItem[] => {
+      const target = items.find((it) => it.id === id)
+      if (!target) return items
+      const occupied = occupiedOf(items, id, columns)
+      const { w, h } = gridOf(size, columns)
+      const spot = nearestFree(occupied, w, h, target.x, target.y, columns)
+      return items.map((it) => (it.id === id ? { ...it, size, x: spot.x, y: spot.y } : it))
+    },
+    [],
+  )
+
+  const setSize = useCallback(
+    (id: WidgetId, size: WidgetSize, columns = DEFAULT_COLUMNS) => {
+      update((prev) => {
+        if (!WIDGET_DEFS[id].sizes.includes(size)) return prev
+        return { version: 3, items: placeAtSize(prev.items, id, size, columns) }
+      })
+    },
+    [update, placeAtSize],
+  )
 
   /** 尺寸手柄：在该组件允许的尺寸里循环 */
-  const cycleSize = useCallback((id: WidgetId) => {
-    update((prev) => ({
-      ...prev,
-      items: prev.items.map((it) => {
-        if (it.id !== id) return it
+  const cycleSize = useCallback(
+    (id: WidgetId, columns = DEFAULT_COLUMNS) => {
+      update((prev) => {
+        const item = prev.items.find((it) => it.id === id)
+        if (!item) return prev
         const sizes = WIDGET_DEFS[id].sizes
-        const next = sizes[(sizes.indexOf(it.size) + 1) % sizes.length]
-        return { ...it, size: next }
-      }),
-    }))
-  }, [update])
+        const next = sizes[(sizes.indexOf(item.size) + 1) % sizes.length]
+        return { version: 3, items: placeAtSize(prev.items, id, next, columns) }
+      })
+    },
+    [update, placeAtSize],
+  )
 
-  const reorder = useCallback((from: WidgetId, to: WidgetId, after: boolean) => {
-    update((prev) => {
-      if (from === to) return prev
-      const items = [...prev.items]
-      const fromIdx = items.findIndex((it) => it.id === from)
-      if (fromIdx < 0) return prev
-      const [moved] = items.splice(fromIdx, 1)
-      const toIdx = items.findIndex((it) => it.id === to)
-      if (toIdx < 0) return prev
-      items.splice(after ? toIdx + 1 : toIdx, 0, moved)
-      return { ...prev, items }
-    })
-  }, [update])
+  /** 自由摆放：落库前做吸附范围内就近避让，保证不叠在别的组件上 */
+  const move = useCallback(
+    (id: WidgetId, x: number, y: number, columns = DEFAULT_COLUMNS) => {
+      update((prev) => {
+        const item = prev.items.find((it) => it.id === id)
+        if (!item) return prev
+        const occupied = occupiedOf(prev.items, id, columns)
+        const { w, h } = gridOf(item.size, columns)
+        const spot = nearestFree(occupied, w, h, x, y, columns)
+        return {
+          version: 3,
+          items: prev.items.map((it) => (it.id === id ? { ...it, x: spot.x, y: spot.y } : it)),
+        }
+      })
+    },
+    [update],
+  )
 
-  /** 自由摆放：记录吸附后的网格坐标 */
-  const move = useCallback((id: WidgetId, x: number, y: number) => {
-    update((prev) => ({
-      ...prev,
-      free: true,
-      items: prev.items.map((it) => (it.id === id ? { ...it, x, y } : it)),
-    }))
-  }, [update])
-
-  const setFree = useCallback((free: boolean) => {
-    update((prev) => {
-      if (prev.free === free) return prev
-      // 从自由摆放退回紧凑网格时丢掉坐标，避免下次开启时落回旧位置
-      return {
-        version: 2,
-        free,
-        items: free ? prev.items : prev.items.map(({ x: _x, y: _y, ...it }) => it),
-      }
-    })
-  }, [update])
-
-  const reset = useCallback(() => update({ version: 2, free: false, items: DEFAULT_ITEMS }), [update])
+  const reset = useCallback(() => update(DEFAULT_STATE), [update])
 
   // 远端偏好 hydrate / 其它标签页改动后重读一次本地快照；
   // 值没变就返回原对象，不会因为 writePref 自己触发的通知形成循环
@@ -298,7 +430,6 @@ export function useWidgetLayout() {
 
   return {
     layout: state.items,
-    free: state.free,
-    add, remove, setSize, cycleSize, reorder, move, setFree, reset, rest,
+    add, remove, setSize, cycleSize, move, reset, rest,
   }
 }

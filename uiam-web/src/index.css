@@ -724,7 +724,8 @@ code,
      不再用 1fr 拉伸——拉伸出来的 1×1 是 2.5:1 的扁条，怎么上玻璃都不像 macOS */
   grid-template-columns: repeat(auto-fill, var(--wg-unit));
   grid-auto-rows: var(--wg-unit);
-  grid-auto-flow: row dense;
+  /* 组件坐标全部显式给出，grid 只负责画格子；不再自动流式铺满 */
+  grid-auto-flow: row;
   gap: var(--wg-gap);
   align-content: start;
   justify-content: start;
@@ -754,8 +755,10 @@ code,
   --wg-t2: var(--wg-ink-2);
   display: flex;
   flex-direction: column;
-  grid-column: span var(--w, 1);
-  grid-row: span var(--h, 1);
+  grid-column: var(--col, 1) / span var(--w, 1);
+  grid-row: var(--row, 1) / span var(--h, 1);
+  /* 卡片是展示与快捷入口，拖动时不该选中文字 */
+  user-select: none;
   padding: var(--wg-pad);
   border-radius: var(--wg-radius);
   background-color: #101528;
@@ -925,7 +928,10 @@ html[data-wg-fallback='opaque'] .widget::after {
   outline-offset: 2px;
 }
 .widget.dragging {
-  opacity: 0.42;
+  opacity: 0.85;
+  z-index: 20;
+  cursor: grabbing;
+  will-change: transform;
 }
 .widgets.editing .widget {
   box-shadow:
@@ -4593,14 +4599,6 @@ html.theme-fading * {
 /* ============================================================
    编辑态 / 小组件中心 / 自由摆放
    ============================================================ */
-.widgets.free {
-  grid-auto-flow: row;
-}
-.widgets.free .widget {
-  grid-column: var(--col, 1) / span var(--w, 1);
-  grid-row: var(--row, 1) / span var(--h, 1);
-}
-
 /* `.widget > *` 会把直接子元素抬成 relative，这两个控件要显式抢回 absolute */
 .widget > .wg-remove,
 .widget > .wg-resize {

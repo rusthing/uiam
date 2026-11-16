@@ -7,3 +7,4 @@ pub mod uiam_gateway_balancer;
 pub mod uiam_gateway_listener;
 pub mod uiam_gateway_release;
 pub mod uiam_gateway_route;
+pub mod uiam_user_pref;

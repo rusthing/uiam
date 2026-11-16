@@ -5,7 +5,7 @@
  * 所以放在设置里而不是藏在某个表单里——一期没有登录，这是唯一能说明「谁改的」
  * 的东西。
  */
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { getOperatorId, setOperatorId } from '../lib/api'
 import { currentTheme, subscribeTheme, toggleTheme } from '../lib/theme'
 import {
@@ -24,7 +24,7 @@ import {
   type WidgetDim,
   type WidgetStyle,
 } from '../shell/widgetAppearance'
-import { preferencesBackend, readPref, subscribePrefs } from '../lib/preferences'
+import { preferencesBackend } from '../lib/preferences'
 import { cx } from '../components/ui'
 
 export function SettingsApp() {
@@ -34,18 +34,7 @@ export function SettingsApp() {
   const site = useSiteConfig()
   const [operator, setOperator] = useState(getOperatorId)
   const [iconUrl, setIconUrl] = useState('')
-  const [freeMode, setFreeMode] = useState(
-    () => readPref<{ free?: boolean } | null>('uiam-desktop', null)?.free === true,
-  )
   const toast = useToast()
-
-  useEffect(
-    () =>
-      subscribePrefs(() => {
-        setFreeMode(readPref<{ free?: boolean } | null>('uiam-desktop', null)?.free === true)
-      }),
-    [],
-  )
   const shell = useShell()
   const iconIsPreset = Boolean(SITE_ICONS[site.icon])
 
@@ -290,19 +279,8 @@ export function SettingsApp() {
         <button className="btn btn-sm" onClick={resetLayout}>
           恢复默认布局
         </button>
-        <label className="switch-row">
-          <input
-            type="checkbox"
-            checked={freeMode}
-            onChange={(e) => {
-              setFreeMode(e.target.checked)
-              window.dispatchEvent(new CustomEvent('uiam-set-free', { detail: e.target.checked }))
-            }}
-          />
-          自由摆放（拖动时吸附网格）
-        </label>
         <span className="hint" style={{ margin: 0 }}>
-          编辑态下可拖动组件、点右下手柄改尺寸、点左上「−」移除；关掉自由摆放时拖的是顺序。
+          直接拖动组件即可摆放，松手自动吸附网格；编辑态用于点右下手柄改尺寸、点左上「−」移除。
           布局存于 {backend.label}。
         </span>
       </div>

@@ -1,9 +1,9 @@
 /**
- * 桌面：壁纸 + 组件网格 + 窗口层 + 小组件中心。
+ * 桌面：壁纸 + 自由摆放的组件 + 窗口层 + 小组件中心。
  *
- * 两种摆放形态共用一份布局数据：
- *   · 紧凑（默认）：CSS Grid dense，HTML5 DnD 拖的是**顺序**
- *   · 自由摆放：每个组件带 x/y 网格坐标，pointer 拖动吸附到格（设置页可开）
+ * 每个组件带 x/y 网格坐标，直接 pointer 拖动即可换位置（不需要先进编辑态）：
+ * 移动 < 4px 视为点击、打开对应应用；≥ 4px 进入拖拽，松手后抑制这次 click。
+ * 编辑态只负责改尺寸、移除、打开小组件中心和恢复默认布局。
  *
  * 尺寸用 `gridOf(size, columns)` 收敛到当前可用列数，窄屏不会让 4 列组件溢出。
  * 点组件非按钮区域会打开对应应用（HIG：widget 的主交互是 deep link）；内部按钮
@@ -67,6 +67,10 @@ interface DragState {
   startY: number
   baseX: number
   baseY: number
+  /** 当前尺寸占的列数，用于吸附时限制 x 不越界 */
+  w: number
+  /** 是否已经越过 4px 阈值，决定松手算拖拽还是点击 */
+  moved: boolean
 }
 
 interface ResizeState {
@@ -79,9 +83,7 @@ interface ResizeState {
 
 export function Desktop() {
   const shell = useShell()
-  const { layout, free, add, remove, setSize, cycleSize, reorder, move, setFree, reset, rest } =
-    useWidgetLayout()
-  const [dragId, setDragId] = useState<WidgetId | null>(null)
+  const { layout, add, remove, setSize, cycleSize, move, reset, rest } = useWidgetLayout()
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [dropHint, setDropHint] = useState<{ x: number; y: number } | null>(null)
   const [metrics, setMetrics] = useState({ unit: 168, gap: 16, columns: 4 })
@@ -93,11 +95,8 @@ export function Desktop() {
   const widgetsRef = useRef<HTMLDivElement>(null)
 
   const layoutKey = useMemo(
-    () =>
-      `${free ? 'free' : 'dense'}:${layout
-        .map((it) => `${it.id}.${it.size}.${it.x ?? ''}.${it.y ?? ''}`)
-        .join('|')}`,
-    [layout, free],
+    () => layout.map((it) => `${it.id}.${it.size}.${it.x}.${it.y}`).join('|'),
+    [layout],
   )
   useWidgetGeometry(widgetsRef, layoutKey, shell.editing)
 
@@ -144,14 +143,9 @@ export function Desktop() {
 
   useEffect(() => {
     const onReset = () => reset()
-    const onSetFree = (e: Event) => setFree((e as CustomEvent<boolean>).detail)
     window.addEventListener('uiam-reset-desktop', onReset)
-    window.addEventListener('uiam-set-free', onSetFree)
-    return () => {
-      window.removeEventListener('uiam-reset-desktop', onReset)
-      window.removeEventListener('uiam-set-free', onSetFree)
-    }
-  }, [reset, setFree])
+    return () => window.removeEventListener('uiam-reset-desktop', onReset)
+  }, [reset])
 
   useEffect(() => {
     if (!shell.editing) setGalleryOpen(false)
@@ -167,28 +161,6 @@ export function Desktop() {
       window.removeEventListener('drop', clear)
     }
   }, [])
-
-  /* ---------- 紧凑模式：HTML5 拖动排序 ---------- */
-  const onDragStart = (e: DragEvent<HTMLDivElement>, id: WidgetId) => {
-    if (!shell.editing || free) return
-    setDragId(id)
-    e.dataTransfer.effectAllowed = 'move'
-    try {
-      e.dataTransfer.setData('text/plain', id)
-    } catch {
-      // Safari 在 dragstart 里 setData 偶尔抛，不影响 effectAllowed
-    }
-  }
-
-  const onDragOver = (e: DragEvent<HTMLDivElement>, id: WidgetId) => {
-    if (!dragId || free) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (dragId === id) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    // 用指针在目标左半/右半判断，比较数组下标会在换位后来回翻转
-    reorder(dragId, id, e.clientX - rect.left > rect.width / 2)
-  }
 
   /* ---------- 小组件中心 → 桌面：拖到哪就放在哪 ---------- */
   const gridPointOf = (e: DragEvent<HTMLDivElement>) => {
@@ -227,28 +199,21 @@ export function Desktop() {
     e.preventDefault()
 
     const p = gridPointOf(e)
-    const g = gridOf(payload.size, metrics.columns)
-    const hit = document
-      .elementFromPoint(e.clientX, e.clientY)
-      ?.closest<HTMLElement>('.widget')?.dataset.id as WidgetId | undefined
-    add(payload.id, payload.size, {
-      x: Math.min(p.x, Math.max(0, metrics.columns - g.w)),
-      y: p.y,
-      beforeId: !free && hit && hit !== payload.id ? hit : null,
-    })
+    add(payload.id, payload.size, { x: p.x, y: p.y }, metrics.columns)
   }
 
   /* ---------- 自由摆放：pointer 拖动 + 网格吸附 ---------- */
   const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
-    if (!shell.editing || !free) return
-    if ((e.target as HTMLElement).closest('button, a, input')) return
-    const cell = metrics.unit + metrics.gap
+    if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
+    const g = gridOf(it.size, metrics.columns)
     pointerRef.current = {
       id: it.id,
       startX: e.clientX,
       startY: e.clientY,
-      baseX: it.x ?? Math.round(e.currentTarget.offsetLeft / cell),
-      baseY: it.y ?? Math.round(e.currentTarget.offsetTop / cell),
+      baseX: it.x,
+      baseY: it.y,
+      w: g.w,
+      moved: false,
     }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
@@ -256,9 +221,19 @@ export function Desktop() {
   const onWidgetPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = pointerRef.current
     if (!d) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    // 先过阈值再进入拖拽，否则点击打开应用会变成「挪了一格」
+    if (!d.moved && Math.hypot(dx, dy) < 4) return
+    // 进入拖拽后阻止默认行为，避免拖动时选到卡片里的文字
+    e.preventDefault()
+    d.moved = true
     const cell = metrics.unit + metrics.gap
-    const x = Math.max(0, d.baseX + Math.round((e.clientX - d.startX) / cell))
-    const y = Math.max(0, d.baseY + Math.round((e.clientY - d.startY) / cell))
+    const x = Math.max(
+      0,
+      Math.min(d.baseX + Math.round(dx / cell), Math.max(0, metrics.columns - d.w)),
+    )
+    const y = Math.max(0, d.baseY + Math.round(dy / cell))
     const next = { id: d.id, x, y }
     pointerPosRef.current = next
     setPointerPos(next)
@@ -267,8 +242,15 @@ export function Desktop() {
   const onWidgetPointerUp = () => {
     const d = pointerRef.current
     if (!d) return
-    const pos = pointerPosRef.current
-    if (pos && pos.id === d.id) move(d.id, pos.x, pos.y)
+    if (d.moved) {
+      const pos = pointerPosRef.current
+      if (pos && pos.id === d.id) move(d.id, pos.x, pos.y, metrics.columns)
+      // 拖完的这一次 click 不应该再打开应用
+      suppressClick.current = true
+      window.setTimeout(() => {
+        suppressClick.current = false
+      }, 0)
+    }
     pointerRef.current = null
     pointerPosRef.current = null
     setPointerPos(null)
@@ -296,7 +278,7 @@ export function Desktop() {
     const sizes = WIDGET_DEFS[r.id].sizes
     const step = Math.round(delta / (metrics.unit + metrics.gap))
     const next = sizes[Math.max(0, Math.min(sizes.length - 1, r.index + step))]
-    if (next) setSize(r.id, next)
+    if (next) setSize(r.id, next, metrics.columns)
   }
 
   const onResizeUp = () => {
@@ -314,6 +296,7 @@ export function Desktop() {
   const openWidget = (id: WidgetId) => shell.openApp(WIDGET_APP[id])
 
   const onActivate = (e: ReactMouseEvent<HTMLDivElement>, id: WidgetId) => {
+    if (suppressClick.current) return
     if (shell.editing) return
     if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
     openWidget(id)
@@ -333,7 +316,7 @@ export function Desktop() {
     <>
       <div className="desktop" onContextMenu={onContextMenu}>
         <div
-          className={cx('widgets', shell.editing && 'editing', free && 'free')}
+          className={cx('widgets', shell.editing && 'editing')}
           ref={widgetsRef}
           onDragOver={onGalleryDragOver}
           onDrop={onGalleryDrop}
@@ -345,32 +328,25 @@ export function Desktop() {
             const def = WIDGET_DEFS[it.id]
             const g = gridOf(it.size, metrics.columns)
             const pos = pointerPos?.id === it.id ? pointerPos : null
-            const x = clampX(pos?.x ?? it.x ?? 0, g.w)
-            const y = Math.max(0, pos?.y ?? it.y ?? 0)
+            const x = clampX(pos?.x ?? it.x, g.w)
+            const y = Math.max(0, pos?.y ?? it.y)
             const style = {
               ['--w' as string]: g.w,
               ['--h' as string]: g.h,
               ['--i' as string]: i,
-              ...(free ? { ['--col' as string]: x + 1, ['--row' as string]: y + 1 } : {}),
+              ['--col' as string]: x + 1,
+              ['--row' as string]: y + 1,
             } as CSSProperties
 
             return (
               <div
                 key={it.id}
-                className={cx('widget', dragId === it.id && 'dragging')}
+                className={cx('widget', pos && 'dragging')}
                 data-id={it.id}
                 style={style}
                 role="button"
                 tabIndex={0}
                 aria-label={`${def.name}，按回车打开${WIDGET_APP[it.id] === 'gateway' ? '网关配置' : '对应应用'}`}
-                draggable={shell.editing && !free}
-                onDragStart={(e) => onDragStart(e, it.id)}
-                onDragOver={(e) => onDragOver(e, it.id)}
-                onDragEnd={() => setDragId(null)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setDragId(null)
-                }}
                 onPointerDown={(e) => onWidgetPointerDown(e, it)}
                 onPointerMove={onWidgetPointerMove}
                 onPointerUp={onWidgetPointerUp}
@@ -404,7 +380,7 @@ export function Desktop() {
                       onPointerCancel={onResizeUp}
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (!suppressClick.current) cycleSize(it.id)
+                        if (!suppressClick.current) cycleSize(it.id, metrics.columns)
                       }}
                       title="拖动或点击切换尺寸"
                       aria-label={`切换${def.name}尺寸，当前${it.size}`}

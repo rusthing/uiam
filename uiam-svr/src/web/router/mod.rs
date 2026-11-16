@@ -5,3 +5,4 @@ mod uiam_gateway_publish_router;
 mod uiam_gateway_release_router;
 mod uiam_gateway_route_router;
 mod uiam_gateway_router;
+mod uiam_pref_router;

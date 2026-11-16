@@ -2,12 +2,13 @@
 /* DBMS name:      PostgreSQL 9.x                               */
 /* Created on:     2026/11/14 22:10:00                          */
 /*                                                              */
-/* uiam 一期：网关配置（5 张表）                                  */
+/* uiam 一期：网关配置（5 张表）+ 桌面偏好（1 张表）               */
 /*   uiam_gateway            网关实例（= 一个 Consul KV key）     */
 /*   uiam_gateway_listener   监听器（http / tcp 同构，kind 区分） */
 /*   uiam_gateway_route      路由（顺序即语义）                   */
 /*   uiam_gateway_balancer   负载均衡器（name 被 route 引用）     */
 /*   uiam_gateway_release    发布版本（content 存完整 TOML）      */
+/*   uiam_user_pref          用户偏好（桌面布局等，按用户隔离）    */
 /*==============================================================*/
 
 
@@ -338,6 +339,57 @@ comment on column uiam_gateway_release.updater_id is
 comment on column uiam_gateway_release.update_ms is
 '最后操作时间戳
 同上：推送成功回填时刷新，用于判断「这条记录是不是刚被推过」';
+
+
+/*==============================================================*/
+/* Table: uiam_user_pref                                        */
+/*==============================================================*/
+create table uiam_user_pref (
+   id                   INT8                 not null,
+   user_id              INT8                 not null,
+   pref_key             VARCHAR(64)          not null,
+   pref_value           TEXT                 not null,
+   creater_id           INT8                 not null,
+   create_ms            INT8                 not null,
+   updater_id           INT8                 not null,
+   update_ms            INT8                 not null,
+   constraint PK_UIAM_USER_PREF primary key (id),
+   constraint AK_USER_KEY_UIAM_USER_PREF unique (user_id, pref_key)
+);
+
+comment on table uiam_user_pref is
+'用户偏好
+按用户保存桌面布局等前端偏好，key 由前端约定，value 为 JSON 文本
+一个用户可以有多个 key，同一 key 只有一行';
+
+comment on column uiam_user_pref.id is
+'ID';
+
+comment on column uiam_user_pref.user_id is
+'用户 ID
+来自 X-User-Id，与 adm 的用户主键一致';
+
+comment on column uiam_user_pref.pref_key is
+'偏好键
+如 uiam-desktop / uiam-widget-appearance / uiam-site / uiam-gallery
+@len 1..=64';
+
+comment on column uiam_user_pref.pref_value is
+'偏好值
+JSON 文本，结构由对应模块自行解释
+@len 1..';
+
+comment on column uiam_user_pref.creater_id is
+'创建人 ID';
+
+comment on column uiam_user_pref.create_ms is
+'创建时间戳（毫秒）';
+
+comment on column uiam_user_pref.updater_id is
+'最后修改人 ID';
+
+comment on column uiam_user_pref.update_ms is
+'最后修改时间戳（毫秒）';
 
 
 /*==============================================================*/
