@@ -9,10 +9,12 @@
  */
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
+import { copyText } from '../lib/clipboard'
 import { shortChecksum } from '../lib/format'
 import type { Gateway, RenderPreview } from '../lib/types'
 import { CodeView } from './CodeView'
 import { IconCheck, IconCopy, IconDownload } from './icons'
+import { useToast } from './Toast'
 import { Modal, Spinner } from './ui'
 
 export function ExportDialog({
@@ -24,6 +26,7 @@ export function ExportDialog({
   gateway: Gateway
   onClose: () => void
 }) {
+  const toast = useToast()
   const [preview, setPreview] = useState<RenderPreview>()
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
@@ -50,12 +53,14 @@ export function ExportDialog({
 
   const copy = async () => {
     if (!preview) return
-    try {
-      await navigator.clipboard.writeText(preview.toml)
+    // 走带降级的复制：http + 非 localhost 时 navigator.clipboard 不存在，
+    // 以前静默 catch 的结果就是「点了没反应」，现在失败会明确说出来
+    const ok = await copyText(preview.toml)
+    if (ok) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // http + 非 localhost 拿不到剪贴板权限，静默失败；下载那条路仍然可用
+    } else {
+      toast.error('浏览器不允许写剪贴板，请用「下载」拿这份 TOML')
     }
   }
 
@@ -66,8 +71,16 @@ export function ExportDialog({
     const a = document.createElement('a')
     a.href = url
     a.download = filename
+    // 必须挂进文档再点：Firefox 对游离节点上的 click 不触发下载
+    a.style.display = 'none'
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    // 立刻 revoke 会让 Safari 拿到一个已失效的 blob 地址，下载中断
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    // 下载已经交给浏览器了，弹窗留着没有意义——直接关掉，再用 toast 交代结果
+    toast.success(`已开始下载 ${filename}`)
+    onClose()
   }
 
   return (

@@ -5,7 +5,9 @@
  * 而为了高亮引一个词法器（含它的体积与升级）在这个场景里不划算。
  */
 import { useMemo, useState } from 'react'
+import { copyText } from '../lib/clipboard'
 import { IconCheck, IconCopy } from './icons'
+import { useToast } from './Toast'
 import { cx } from './ui'
 
 export function CodeView({
@@ -19,16 +21,16 @@ export function CodeView({
   wrap?: boolean
   className?: string
 }) {
+  const toast = useToast()
   const [copied, setCopied] = useState(false)
   const lines = useMemo(() => code.split('\n'), [code])
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
+    if (await copyText(code)) {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      // 非安全上下文（http + 非 localhost）拿不到剪贴板权限，静默失败即可
+    } else {
+      toast.error('浏览器不允许写剪贴板，请手动选中文本复制')
     }
   }
 
