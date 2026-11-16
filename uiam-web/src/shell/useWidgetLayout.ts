@@ -189,6 +189,22 @@ export function nearestFree(
   return best ?? firstFree(occupied, width, h, cols)
 }
 
+function rectOf(item: LayoutItem, columns: number): Rect & { id: WidgetId } {
+  const { w, h } = gridOf(item.size, columns)
+  return { id: item.id, x: clampX(item.x, w, columns), y: Math.max(0, item.y), w, h }
+}
+
+/** 让某个组件落在不与别人重叠的位置：原位可用就不动，被占才就近挪 */
+function settleItem(items: LayoutItem[], id: WidgetId, columns: number): LayoutItem[] {
+  const target = items.find((it) => it.id === id)
+  if (!target) return items
+  const occupied = occupiedOf(items, id, columns)
+  const { w, h } = gridOf(target.size, columns)
+  const spot = nearestFree(occupied, w, h, target.x, target.y, columns)
+  if (spot.x === target.x && spot.y === target.y) return items
+  return items.map((it) => (it.id === id ? { ...it, x: spot.x, y: spot.y } : it))
+}
+
 /** 已有组件的占位矩形；`exceptId` 用于移动/改尺寸时排除自己 */
 function occupiedOf(items: LayoutItem[], exceptId: WidgetId | null, columns: number): Rect[] {
   return items
@@ -389,15 +405,38 @@ export function useWidgetLayout() {
     [update, placeAtSize],
   )
 
-  /** 自由摆放：落库前做吸附范围内就近避让，保证不叠在别的组件上 */
+  /**
+   * 自由摆放：落到哪就停到哪。
+   * 落点被一张卡片占住时两张卡**交换位置**——否则桌面初始是排满的，往旁边拖一格
+   * 只会被「就近找空位」弹回原处，看起来就像拖不动。
+   */
   const move = useCallback(
     (id: WidgetId, x: number, y: number, columns = DEFAULT_COLUMNS) => {
       update((prev) => {
         const item = prev.items.find((it) => it.id === id)
         if (!item) return prev
-        const occupied = occupiedOf(prev.items, id, columns)
-        const { w, h } = gridOf(item.size, columns)
-        const spot = nearestFree(occupied, w, h, x, y, columns)
+        const mine = rectOf(item, columns)
+        const target = { x: clampX(x, mine.w, columns), y: Math.max(0, y) }
+        const others = prev.items.filter((it) => it.id !== id).map((it) => rectOf(it, columns))
+        const hits = others.filter((other) => collides(other, { ...target, w: mine.w, h: mine.h }))
+
+        if (hits.length === 1) {
+          const victim = hits[0]
+          const swapped = prev.items.map((it) => {
+            if (it.id === id) return { ...it, x: target.x, y: target.y }
+            if (it.id === victim.id) {
+              return { ...it, x: clampX(mine.x, victim.w, columns), y: mine.y }
+            }
+            return it
+          })
+          // 尺寸不同时被换过去的卡片可能放不下，再就近落一次位
+          return { version: 3, items: settleItem(swapped, victim.id, columns) }
+        }
+
+        const spot =
+          hits.length === 0
+            ? target
+            : nearestFree(others, mine.w, mine.h, target.x, target.y, columns)
         return {
           version: 3,
           items: prev.items.map((it) => (it.id === id ? { ...it, x: spot.x, y: spot.y } : it)),
