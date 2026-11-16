@@ -69,6 +69,8 @@ interface DragState {
   baseY: number
   /** 当前尺寸占的列数，用于吸附时限制 x 不越界 */
   w: number
+  /** 按下瞬间重新量到的可用列数，避免用挂载时的旧值把横向拖动锁死 */
+  columns: number
   /** 是否已经越过 4px 阈值，决定松手算拖拽还是点击 */
   moved: boolean
 }
@@ -205,7 +207,14 @@ export function Desktop() {
   /* ---------- 自由摆放：pointer 拖动 + 网格吸附 ---------- */
   const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
     if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
-    const g = gridOf(it.size, metrics.columns)
+    // 列数用「按下这一刻」的容器宽度重新算：窗口/DevTools 改变后，
+    // 挂载时量的旧列数会让 x 上限偏小，表现为「只能上下拖、往右拖不动」。
+    const el = widgetsRef.current
+    const columns = el
+      ? Math.max(1, Math.floor((el.clientWidth + metrics.gap) / (metrics.unit + metrics.gap)))
+      : metrics.columns
+    if (columns !== metrics.columns) setMetrics((prev) => ({ ...prev, columns }))
+    const g = gridOf(it.size, columns)
     pointerRef.current = {
       id: it.id,
       startX: e.clientX,
@@ -213,6 +222,7 @@ export function Desktop() {
       baseX: it.x,
       baseY: it.y,
       w: g.w,
+      columns,
       moved: false,
     }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -231,7 +241,7 @@ export function Desktop() {
     const cell = metrics.unit + metrics.gap
     const x = Math.max(
       0,
-      Math.min(d.baseX + Math.round(dx / cell), Math.max(0, metrics.columns - d.w)),
+      Math.min(d.baseX + Math.round(dx / cell), Math.max(0, d.columns - d.w)),
     )
     const y = Math.max(0, d.baseY + Math.round(dy / cell))
     const next = { id: d.id, x, y }
@@ -244,7 +254,7 @@ export function Desktop() {
     if (!d) return
     if (d.moved) {
       const pos = pointerPosRef.current
-      if (pos && pos.id === d.id) move(d.id, pos.x, pos.y, metrics.columns)
+      if (pos && pos.id === d.id) move(d.id, pos.x, pos.y, d.columns)
       // 拖完的这一次 click 不应该再打开应用
       suppressClick.current = true
       window.setTimeout(() => {

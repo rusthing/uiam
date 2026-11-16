@@ -113,6 +113,12 @@ const DEFAULT_ORDER: Array<Pick<LayoutItem, 'id' | 'size'>> = [
 /** 默认按 4 列摆；实际列数更少时由渲染层裁剪 */
 const DEFAULT_COLUMNS = 4
 
+/**
+ * 读取存档时允许的列数上限。宽屏可能排出 5 列以上，
+ * 不能再用默认的 4 列把右边两列的位置裁掉。
+ */
+const STORED_COLUMNS = 12
+
 const KEY = 'uiam-desktop' as const
 
 interface Rect {
@@ -283,13 +289,13 @@ function sanitizeItems(raw: unknown, keepCoords: boolean): LayoutItem[] | null {
   const occupied: Rect[] = []
   const items: LayoutItem[] = []
   for (const item of picked) {
-    const { w, h } = gridOf(item.size, DEFAULT_COLUMNS)
+    const { w, h } = gridOf(item.size, STORED_COLUMNS)
     const hasSpot =
       item.x >= 0 &&
       item.y >= 0 &&
-      fits(occupied, { x: clampX(item.x, w, DEFAULT_COLUMNS), y: item.y, w, h })
+      fits(occupied, { x: clampX(item.x, w, STORED_COLUMNS), y: item.y, w, h })
     const spot = hasSpot
-      ? { x: clampX(item.x, w, DEFAULT_COLUMNS), y: item.y }
+      ? { x: clampX(item.x, w, STORED_COLUMNS), y: item.y }
       : firstFree(occupied, w, h, DEFAULT_COLUMNS)
     items.push({ ...item, ...spot })
     occupied.push({ ...spot, w, h })
@@ -406,9 +412,9 @@ export function useWidgetLayout() {
   )
 
   /**
-   * 自由摆放：落到哪就停到哪。
-   * 落点被一张卡片占住时两张卡**交换位置**——否则桌面初始是排满的，往旁边拖一格
-   * 只会被「就近找空位」弹回原处，看起来就像拖不动。
+   * 自由摆放：拖到哪就停在哪。
+   * 落点压住的卡片会被**推开**到就近空位（通常是拖动者刚空出来的格子），
+   * 拖动者本身始终钉在落点——不再「就近找空位」把自己弹到别处。
    */
   const move = useCallback(
     (id: WidgetId, x: number, y: number, columns = DEFAULT_COLUMNS) => {
@@ -417,30 +423,27 @@ export function useWidgetLayout() {
         if (!item) return prev
         const mine = rectOf(item, columns)
         const target = { x: clampX(x, mine.w, columns), y: Math.max(0, y) }
-        const others = prev.items.filter((it) => it.id !== id).map((it) => rectOf(it, columns))
-        const hits = others.filter((other) => collides(other, { ...target, w: mine.w, h: mine.h }))
+        const dragged = { ...target, w: mine.w, h: mine.h }
+        const hits = prev.items
+          .filter((it) => it.id !== id)
+          .map((it) => rectOf(it, columns))
+          .filter((other) => collides(other, dragged))
+          .sort(
+            (a, b) =>
+              Math.abs(a.x - target.x) +
+              Math.abs(a.y - target.y) -
+              (Math.abs(b.x - target.x) + Math.abs(b.y - target.y)),
+          )
 
-        if (hits.length === 1) {
-          const victim = hits[0]
-          const swapped = prev.items.map((it) => {
-            if (it.id === id) return { ...it, x: target.x, y: target.y }
-            if (it.id === victim.id) {
-              return { ...it, x: clampX(mine.x, victim.w, columns), y: mine.y }
-            }
-            return it
-          })
-          // 尺寸不同时被换过去的卡片可能放不下，再就近落一次位
-          return { version: 3, items: settleItem(swapped, victim.id, columns) }
+        // 先让卡片钉在落点，再按由近到远把压住的卡片逐个推到空位
+        let next = prev.items.map((it) => (it.id === id ? { ...it, x: target.x, y: target.y } : it))
+        for (const hit of hits) {
+          const current = next.find((it) => it.id === hit.id)
+          if (!current) continue
+          if (!collides(rectOf(current, columns), dragged)) continue
+          next = settleItem(next, hit.id, columns)
         }
-
-        const spot =
-          hits.length === 0
-            ? target
-            : nearestFree(others, mine.w, mine.h, target.x, target.y, columns)
-        return {
-          version: 3,
-          items: prev.items.map((it) => (it.id === id ? { ...it, x: spot.x, y: spot.y } : it)),
-        }
+        return { version: 3, items: next }
       })
     },
     [update],
