@@ -2,9 +2,13 @@
 
 uiam 管理面前端：**macOS 桌面式**外壳 + 网关配置的结构化编辑、渲染预览、发布与回滚。
 
-视觉与结构严格对齐定稿原型 [`prototype/a-macos.html`](prototype/a-macos.html)
-（macOS 26 Tahoe / Liquid Glass）：壁纸 + 菜单栏 + 组件网格 + Dock + 启动台 + 可拖拽窗口。
-业务内容住在窗口里，不是「侧边栏 + 标签页」的后台。
+原型 [`prototype/a-macos.html`](prototype/a-macos.html)（macOS 26 Tahoe）是结构基线；
+桌面组件现在按 **macOS 27 Golden Gate** 的小组件规范实现：Liquid Glass 通透度滑块、
+图标与小组件样式（默认 / 透明 / 色调）、调暗桌面小组件、system family 尺寸族、
+小组件中心与编辑态。业务内容住在窗口里，不是「侧边栏 + 标签页」的后台。
+
+顶栏不是仿 macOS 的苹果菜单：左侧是**可配置的站点图标 + 标题**，右侧只留真正有
+行为的「编辑桌面」、外观切换与时钟。
 
 React 19 + Vite 8 + Tailwind 4。没有 UI 组件库，也没有路由库——窗口是内存状态，
 关掉就没了，URL 里塞不下「三个窗口叠着、哪个在最上面」这种事。
@@ -34,9 +38,12 @@ npm run typecheck
 
 | 位置 | 内容 |
 |---|---|
-| 菜单栏左 | 品牌、当前应用名、文件/编辑/显示/前往/窗口/帮助 |
-| 菜单栏右 | **编辑桌面**、外观图标（主题切换，动画圆心）、状态图标、时钟 |
-| 组件网格 | 4 列 × 132px 行高，8 个组件，可拖拽排序 / 切尺寸 / 移除 / 添加，布局存 localStorage |
+| 菜单栏左 | 站点图标 + 站点标题（可配置，点开系统设置） |
+| 菜单栏右 | **编辑桌面**、外观图标（主题切换，动画圆心）、时钟 |
+| 组件网格 | 正方形定宽单元 `--wg-unit`，small(1×1) / medium(2×1) / large(2×2) / XL(4×2)；8 个组件可拖拽、改尺寸、移除、从小组件中心添加 |
+| 编辑态 | 左上「−」移除、右下尺寸手柄、壁纸右键「编辑小组件」、小组件中心（搜索 / 分类 / 预览 / 尺寸 / 描述 / 完成） |
+| 小组件中心 | 卡片可**拖到桌面指定位置**（蓝色虚线落点预览，松手吸附网格）；紧凑排布插到落点组件之前，自由摆放按网格坐标定位。也可点「添加」追加到末尾 |
+| 自由摆放 | 设置页开关；开启后组件带网格坐标，拖动吸附，关闭时拖的是顺序 |
 | Dock | 启动台 + 固定应用 + 临时应用（开着但没固定）+ 废纸篓；右键可固定/取消、关窗口 |
 | 启动台 | 全屏毛玻璃 + 搜索（匹配名字与描述） |
 | 窗口 | 交通灯（关/最小化/缩放）、标题栏拖动、双击标题栏最大化、点 Dock 还原、**八向边缘拖拽改大小**（下限 460×280，最大化时禁用） |
@@ -156,12 +163,17 @@ src/
 │   └── index.tsx      id → 组件分发
 ├── shell/           桌面外壳
 │   ├── state.tsx        窗口/Dock/编辑态/启动台
-│   ├── Desktop.tsx      壁纸 + 组件网格 + 窗口层
-│   ├── MenuBar.tsx / Dock.tsx / Launchpad.tsx / Window.tsx
-│   ├── widgets.tsx      8 个桌面组件
-│   ├── useWidgetLayout.ts 布局定义与 localStorage
+│   ├── Desktop.tsx      壁纸 + 组件网格 + 窗口层 + 编辑态交互
+│   ├── MenuBar.tsx      站点图标/标题 + 编辑桌面 + 主题 + 时钟
+│   ├── Dock.tsx / Launchpad.tsx / Window.tsx
+│   ├── widgets.tsx      8 个桌面组件（骨架占位、更新时间、尺寸增量）
+│   ├── WidgetGallery.tsx 小组件中心
+│   ├── widgetAppearance.ts 外观状态机与全局令牌
+│   ├── useWidgetGeometry.ts 壁纸对齐坐标测量
+│   ├── useWidgetLayout.ts 尺寸族、布局与旧数据迁移
 │   └── overview.tsx     组件共用的聚合数据
-├── lib/             api / types / format / diff / theme / payload（PUT 全量铺底）
+├── lib/             api / types / format / diff / theme / payload
+│                    + site.ts（站点身份）/ preferences.ts（可插拔偏好存储）
 ├── state/           GatewayList（实例列表）、useGatewayTree（一棵子树）
 ├── components/      弹窗、抽屉、Toast、JSON 编辑器、代码视图、diff
 │                    + ListenerForm / RouteForm / BalancerForm / Switch（图与表格共用）
@@ -186,6 +198,50 @@ src/
 圆心取菜单栏外观图标的 `getBoundingClientRect()` 中点，不是鼠标点、也不是屏幕中心。
 不支持或用户要求减少动效时退回整页 CSS 过渡。
 
+## 桌面组件外观与玻璃
+
+`src/shell/widgetAppearance.ts` 把 macOS 27 的三组设置映射成全局令牌：
+
+| 设置 | 令牌 | 行为 |
+|---|---|---|
+| 图标与小组件样式 | `data-wg-style` = default / clear / tinted | clear/tinted 下内容按 primary、accent 两组统一染白，彩色底纹关掉 |
+| Liquid Glass 滑块 | `--wg-glass` 0…1 | **一个值全局统一**：组件、菜单栏、Dock、窗口标题栏共读；左 Clear 最透、右 Tinted 最实。设置页显示的是**不透明度** `(1 - glass)`，与滑块位置同向 |
+| 调暗桌面小组件 | `data-wg-dim` = auto / always / never | auto 由 `data-has-windows` 决定，有窗口盖住桌面时转单色 |
+
+⚠️ **全站仍然不用 `backdrop-filter`**（`0f99d7f` 实测：任意一帧重绘都会让四十多处
+毛玻璃一起重算，60fps → 9fps）。玻璃改成四层静态合成：
+
+1. `.widget` 自身铺 `--wall-gradient`（和 `.desktop` 同一份静态渐变），
+   `background-size: 100vw 100vh` + `--wg-x/--wg-y` 负向偏移 → 显示组件背后那块壁纸；
+2. `::before` 是可调雾化层 + 色晕，`opacity` 由通透度决定；
+3. `::after` 用 `mask-composite: exclude` 做 1px 环形镜面高光，模拟玻璃厚度；
+4. 内容层全部走语义变量，clear / tinted / 单色模式只换变量，不用 `filter` 造合成层。
+
+⚠️ 语义别名 `--wg-t1/--wg-t2` **必须在 `.widget` 上重新声明一次**。自定义属性的
+`var()` 是在「声明所在元素」求值的：只写在 `:root` 的话会提前固化成深色，等 clear /
+tinted 在 `.widget` 上覆盖 `--wg-ink` 时，继承下来的别名不会跟着变，次要文字会在深色
+玻璃上变成深色而读不出来。
+
+`--wg-x/--wg-y` 由 `useWidgetGeometry.ts` 在布局变化、resize、滚动、字体就绪时量一次
+（复用配置图那套 `ResizeObserver` + `document.fonts.ready` 手法），用 `offsetLeft/offsetTop`
+而不是 `getBoundingClientRect()`——组件有入场与 hover 的 transform，量矩形会带位移。
+
+`prefers-reduced-transparency` / `prefers-contrast: more` 命中时强制回落到不透明实底，
+也就是改造前那套；`prefers-reduced-motion` 关掉入场与编辑态抖动。
+
+## 站点身份与偏好存储
+
+- **站点图标 / 标题**：构建期 `VITE_SITE_NAME`、`VITE_SITE_ICON`（预设
+  `gateway` / `grid` / `pulse` / `layers` 或图片 URL），运行时在「系统设置 → 站点」里改；
+  两个来源都同步 `document.title` 与 favicon。见 `src/lib/site.ts`。
+- **偏好存储**：`src/lib/preferences.ts` 是可插拔读写口，默认 `localStorage`
+  （`uiam-desktop` / `uiam-widget-appearance` / `uiam-site` / `uiam-gallery`）。
+  ⚠️ `uiam-svr` 目前**没有偏好设置接口**，所以配了 `VITE_PREFERENCES_URL` 才会启用
+  远端：启动 GET 一份 JSON 快照、改动防抖 PUT（带 `X-User-Id`），连不上静默回退本地。
+  不配也不会假装跨设备同步。
+- **旧布局迁移**：`uiam-desktop` 的 v1 数组（`{id,w,h}`）自动映射到尺寸族，
+  用户摆好的桌面不会因升级被清空。
+
 ## 一期已知取舍
 
 - **没有登录**：操作者 ID 在「系统设置」里手填，只用于 `X-User-Id` 与审计
@@ -193,4 +249,8 @@ src/
   所以桌面上不出现这些应用，不做点开是空壳的假图标
 - **列表接口带 `content`**：发布历史每行都拖着整份 TOML，一期接受
 - **diff 是行级的**：`src/lib/diff.ts` 用 LCS 现算，不做词级最小化
-- **组件布局只存本机**：换设备/换浏览器不跟随，二期接后端配置中心再统一
+- **偏好默认只存本机**：`VITE_PREFERENCES_URL` 未配置时换设备不跟随；后端偏好接口
+  落地后填一个 URL 即可切换，前端不需要再改代码
+- **「深色」图标与小组件样式未单独暴露**：Apple 在「图标与小组件样式」里还有第四档
+  「深色」，这里把它与已有的全局 `data-theme='dark'` 合并了——再拆一档会出现
+  「系统浅色 + 组件深色」和「系统深色 + 组件默认」两套语义重叠的状态

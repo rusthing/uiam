@@ -42,9 +42,50 @@
   --hover: rgba(10, 132, 255, 0.05);
   --side-bg: rgba(246, 246, 249, 0.58);
   --radius-sm: 7px;
+  /* ---- 壁纸：桌面与组件共用同一组渐变，组件才能按视口坐标对齐出「透出壁纸」 ----
+     全是低频径向渐变，本来就没有需要运行时模糊的高频细节，预模糊位图是多余的 */
+  --wall-gradient:
+    radial-gradient(70% 52% at 84% 6%, rgba(206, 112, 255, 0.38) 0%, transparent 62%),
+    radial-gradient(74% 58% at 10% 14%, rgba(72, 146, 255, 0.5) 0%, transparent 64%),
+    radial-gradient(64% 46% at 28% 74%, rgba(138, 104, 255, 0.34) 0%, transparent 66%),
+    radial-gradient(96% 62% at 56% 106%, rgba(255, 146, 92, 0.5) 0%, transparent 62%),
+    linear-gradient(
+      168deg,
+      #0e1526 0%,
+      #1b1a38 20%,
+      #33204a 40%,
+      #572b52 58%,
+      #853f4b 78%,
+      #ad5a42 100%
+    );
+
+  /* ---- widget 尺寸与玻璃（数值由 widgetAppearance.ts 写进 :root 覆盖） ---- */
+  --wg-unit: 168px;
+  --wg-gap: 16px;
+  --wg-radius: 22px;
+  --wg-pad: 16px;
+  --wg-inner-radius: calc(var(--wg-radius) - var(--wg-pad));
+  --wg-tint-opacity: 0.53;
+  --wg-clear-opacity: 0.38;
+  --glass-veil: 0.17;
+  --dock-alpha-top: 0.68;
+  --dock-alpha-bottom: 0.44;
+  --win-bar-alpha: 0.55;
+  --wg-specular: 0.63;
+  --wg-glass: 0.55;
+  --wg-tint-color: #3b6ac9;
+  --wg-ink: #131316;
+  --wg-ink-2: #5a5a62;
+  --wg-ok: #14803a;
+  --wg-warn: #94570a;
+  --wg-accent: #0a84ff;
+  --wg-ok-soft: rgba(52, 199, 89, 0.16);
+  --wg-warn-soft: rgba(255, 159, 10, 0.18);
+  --wg-aura: rgba(255, 255, 255, 0.12);
+
   --wg-bg: rgba(252, 252, 254, 0.9);
-  --wg-t1: #131316;
-  --wg-t2: #5a5a62;
+  --wg-t1: var(--wg-ink);
+  --wg-t2: var(--wg-ink-2);
   --wg-line: rgba(0, 0, 0, 0.07);
 
   /* ---- 业务组件语义别名 ---- */
@@ -90,9 +131,12 @@
   --accent-soft: rgba(10, 132, 255, 0.2);
   --side-bg: rgba(48, 48, 54, 0.45);
   --wg-bg: rgba(30, 30, 36, 0.88);
-  --wg-t1: #f1f1f5;
-  --wg-t2: #a9a9b3;
+  --wg-ink: #f1f1f5;
+  --wg-ink-2: #a9a9b3;
   --wg-line: rgba(255, 255, 255, 0.1);
+  --wg-ok: #5fdc96;
+  --wg-warn: #f5c25c;
+  --wg-aura: rgba(255, 255, 255, 0.07);
 
   --surface-strong: #26262c;
   --surface-sunken: rgba(255, 255, 255, 0.06);
@@ -227,20 +271,8 @@ code,
   position: fixed;
   inset: 0;
   background-color: #101528;
-  background-image:
-    radial-gradient(70% 52% at 84% 6%, rgba(206, 112, 255, 0.38) 0%, transparent 62%),
-    radial-gradient(74% 58% at 10% 14%, rgba(72, 146, 255, 0.5) 0%, transparent 64%),
-    radial-gradient(64% 46% at 28% 74%, rgba(138, 104, 255, 0.34) 0%, transparent 66%),
-    radial-gradient(96% 62% at 56% 106%, rgba(255, 146, 92, 0.5) 0%, transparent 62%),
-    linear-gradient(
-      168deg,
-      #0e1526 0%,
-      #1b1a38 20%,
-      #33204a 40%,
-      #572b52 58%,
-      #853f4b 78%,
-      #ad5a42 100%
-    );
+  /* 与 :root 的 --wall-gradient 同一份：组件背景按视口坐标对齐时才不会色差 */
+  background-image: var(--wall-gradient);
 }
 .desktop::before {
   content: '';
@@ -284,7 +316,11 @@ code,
   height: 26px;
   /* 顶栏是一条压在壁纸上的玻璃：上半透白、下半更透，底部一条 0.5px 亮线收边。
      和窗口一样不用 backdrop-filter——它永远在画面上，一旦重绘就要重算整条模糊 */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.055));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, var(--glass-veil)),
+    rgba(255, 255, 255, 0.045)
+  );
   display: flex;
   align-items: center;
   padding: 0 11px;
@@ -297,37 +333,49 @@ code,
   transition: background 0.28s;
 }
 [data-theme='dark'] .menubar {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.2));
+  background: linear-gradient(180deg, rgba(0, 0, 0, var(--glass-veil)), rgba(0, 0, 0, 0.12));
 }
 .mb-left {
   display: flex;
   align-items: center;
-  gap: 1px;
+  min-width: 0;
 }
-.mb-item {
-  padding: 2px 9px;
-  border-radius: 6px;
-  white-space: nowrap;
-  letter-spacing: 0.1px;
-  transition: background 0.12s var(--ease-soft);
-}
-.mb-item:hover {
-  background: rgba(255, 255, 255, 0.17);
-}
-.mb-item.app-name {
-  font-weight: 600;
-  letter-spacing: 0;
-}
-.mb-logo {
-  padding: 2px 9px 2px 4px;
+/* 站点身份：可配置图标 + 标题，点开设置。不再是苹果标和一排点不动的假菜单 */
+.mb-brand {
   display: flex;
   align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 9px 2px 4px;
+  border: none;
   border-radius: 6px;
-  opacity: 0.97;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0.1px;
+  cursor: pointer;
   transition: background 0.12s var(--ease-soft);
 }
-.mb-logo:hover {
+.mb-brand:hover {
   background: rgba(255, 255, 255, 0.17);
+}
+.mb-brand:focus-visible {
+  outline: 1.5px solid rgba(255, 255, 255, 0.9);
+  outline-offset: -1px;
+}
+.mb-brand-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  opacity: 0.97;
+}
+.mb-brand-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42vw;
 }
 .mb-right {
   margin-left: auto;
@@ -337,11 +385,19 @@ code,
 }
 .mb-status {
   padding: 2px 7px;
+  border: none;
   border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
   display: flex;
   align-items: center;
-  cursor: default;
+  cursor: pointer;
   transition: background 0.12s var(--ease-soft);
+}
+.mb-status:focus-visible {
+  outline: 1.5px solid rgba(255, 255, 255, 0.9);
+  outline-offset: -1px;
 }
 .mb-status:hover {
   background: rgba(255, 255, 255, 0.17);
@@ -470,7 +526,11 @@ code,
   grid-template-columns: 96px 1fr 96px;
   align-items: center;
   /* 标题栏比内容区亮半档：光从上方来，窗口因此有「顶面」 */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, var(--win-bar-alpha)),
+    rgba(255, 255, 255, 0)
+  );
   padding: 0 13px;
   border-bottom: 0.5px solid transparent;
   transition: border-color 0.2s;
@@ -655,47 +715,68 @@ code,
    ============================================================ */
 .widgets {
   position: absolute;
-  top: 40px;
+  top: 42px;
   left: 26px;
   right: 26px;
   bottom: 94px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 132px;
+  /* 正方形定宽单元：small 才是正方形，medium/large/XL 由它派生。
+     不再用 1fr 拉伸——拉伸出来的 1×1 是 2.5:1 的扁条，怎么上玻璃都不像 macOS */
+  grid-template-columns: repeat(auto-fill, var(--wg-unit));
+  grid-auto-rows: var(--wg-unit);
   grid-auto-flow: row dense;
-  gap: 14px;
+  gap: var(--wg-gap);
   align-content: start;
+  justify-content: start;
   z-index: 1;
   overflow: auto;
-  padding-bottom: 2px;
+  padding-bottom: var(--wg-gap);
 }
+/* ============================================================
+   Widget 玻璃：四层静态合成，零 backdrop-filter
+   ------------------------------------------------------------
+   L0 `.widget` 自身：和 `.desktop` 同一份壁纸渐变，background-size 铺满视口，
+      按 `--wg-x/--wg-y`（useWidgetGeometry 量一次）做负向偏移 → 显示的是「这块
+      组件背后」的壁纸。壁纸本来就是低频渐变，等于天然模糊好，不需要运行时滤镜。
+   L1 `::before`：可调雾化层 + 每类组件的色晕，opacity 由 `--wg-tint-opacity` 控制。
+   L2 `::after`：1px 环形镜面高光（顶亮底暗），用 mask-composite 挖空内部，做玻璃厚度。
+   L3 `.widget > *`：内容层，颜色全部走语义变量，clear/tinted/mono 下自动改色。
+   ============================================================ */
 .widget {
   position: relative;
   isolation: isolate;
-  /* 组件自己就是容器：内部按「这一块有多宽」调整排布，而不是看浏览器视口
-     （窗口和组件都能被拖大拖小，视口宽度跟它们没关系） */
   container-type: inline-size;
+  /* 语义别名必须在 .widget 自身重算。自定义属性的 var() 在「声明所在元素」求值：
+     :root 上的 `--wg-t1: var(--wg-ink)` 早就固化成 #131316，clear/tinted 在
+     .widget 上覆盖 --wg-ink 时继承下来的别名不会跟着变，次要文字会在深色玻璃
+     上变成深色而不可读。这里重声明一次，让每个组件用自己的 ink 解析。 */
+  --wg-t1: var(--wg-ink);
+  --wg-t2: var(--wg-ink-2);
   display: flex;
   flex-direction: column;
   grid-column: span var(--w, 1);
   grid-row: span var(--h, 1);
-  padding: 14px 16px 15px;
-  border-radius: 20px;
-  background: var(--wg-bg);
+  padding: var(--wg-pad);
+  border-radius: var(--wg-radius);
+  background-color: #101528;
+  /* 单值会应用到 var() 展开出的全部 5 层渐变；写成两值会按层交替，反而错位 */
+  background-image: var(--wall-gradient);
+  background-size: 100vw 100vh;
+  background-position: calc(-1 * var(--wg-x, 0px)) calc(-1 * var(--wg-y, 0px));
+  background-repeat: no-repeat;
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.36),
+    0 0 0 0.5px rgba(255, 255, 255, 0.3),
     0 18px 40px -14px rgba(4, 8, 20, 0.34),
     0 2px 6px rgba(4, 8, 20, 0.1),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.62);
-  color: var(--wg-t1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  color: var(--wg-ink);
   overflow: hidden;
+  cursor: pointer;
   transition:
     box-shadow 0.22s var(--ease-soft),
     transform 0.22s var(--ease),
-    background 0.28s,
     color 0.28s;
-  /* 入场：一次性错峰，只动 opacity/transform。组件重排时 key 不变，
-     不会因为父组件重渲染而重播 */
   animation: wg-in 0.5s var(--ease) both;
   animation-delay: calc(var(--i, 0) * 45ms);
 }
@@ -709,8 +790,6 @@ code,
     transform: none;
   }
 }
-/* 每类组件一层极淡的色晕：从右上角往里散，只在卡片内部，
-   不参与布局、不拦截事件，也不产生额外的合成层（radial-gradient 是静态绘制） */
 .widget::before {
   content: '';
   position: absolute;
@@ -718,15 +797,41 @@ code,
   z-index: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: radial-gradient(
-    120% 92% at 100% 0%,
-    var(--wg-aura, rgba(255, 255, 255, 0.1)),
-    transparent 68%
+  background:
+    radial-gradient(120% 92% at 100% 0%, var(--wg-aura), transparent 68%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(250, 250, 254, 0.88));
+  opacity: var(--wg-tint-opacity);
+  transition: opacity 0.28s var(--ease-soft);
+}
+.widget::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0.2) 34%,
+    rgba(255, 255, 255, 0) 58%,
+    rgba(255, 255, 255, 0.38)
   );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: var(--wg-specular);
+  transition: opacity 0.28s var(--ease-soft);
 }
 .widget > * {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 .widget[data-id='count'],
 .widget[data-id='nodes'] {
@@ -745,13 +850,79 @@ code,
 .widget[data-id='clock'] {
   --wg-aura: rgba(255, 255, 255, 0.14);
 }
+[data-theme='dark'] .widget::before {
+  background:
+    radial-gradient(120% 92% at 100% 0%, var(--wg-aura), transparent 68%),
+    linear-gradient(180deg, rgba(26, 26, 34, 0.97), rgba(20, 20, 28, 0.92));
+}
+[data-theme='dark'] .widget {
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 18px 40px -14px rgba(0, 0, 0, 0.6),
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ---- 外观三态：内容全部走语义变量，不靠 filter（filter 会造出几十个合成层） ---- */
+html[data-wg-style='clear'] .widget,
+html[data-wg-style='tinted'] .widget {
+  --wg-ink: #ffffff;
+  --wg-ink-2: rgba(255, 255, 255, 0.78);
+  --wg-line: rgba(255, 255, 255, 0.2);
+  --wg-ok: #d8ffe6;
+  --wg-warn: #ffe4bd;
+  --wg-accent: #cfe6ff;
+  --wg-ok-soft: rgba(255, 255, 255, 0.18);
+  --wg-warn-soft: rgba(255, 255, 255, 0.18);
+  --wg-aura: transparent;
+}
+html[data-wg-style='clear'] .widget::before {
+  background:
+    radial-gradient(120% 92% at 100% 0%, rgba(255, 255, 255, 0.22), transparent 68%),
+    linear-gradient(180deg, rgba(24, 28, 46, 0.62), rgba(16, 18, 32, 0.5));
+  opacity: var(--wg-clear-opacity);
+}
+html[data-wg-style='tinted'] .widget::before {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.3)),
+    linear-gradient(var(--wg-tint-color), var(--wg-tint-color));
+  opacity: var(--wg-tint-opacity);
+}
+/* 调暗桌面小组件：auto 在有窗口盖住桌面时转单色 */
+html[data-wg-dim='always'] .widget,
+html[data-wg-dim='auto'][data-has-windows='true'] .widget {
+  --wg-aura: transparent;
+  --wg-ok: var(--wg-ink-2);
+  --wg-warn: var(--wg-ink-2);
+  --wg-accent: var(--wg-ink-2);
+  --wg-ok-soft: rgba(128, 128, 128, 0.16);
+  --wg-warn-soft: rgba(128, 128, 128, 0.16);
+}
+/* 辅助功能降级：回到改造前那套高不透明实底 */
+html[data-wg-fallback='opaque'] .widget {
+  background-image: none;
+  background-color: var(--wg-bg);
+}
+html[data-wg-fallback='opaque'] .widget::before {
+  background: var(--wg-aura);
+  opacity: 0.12;
+}
+html[data-wg-fallback='opaque'] .widget::after {
+  opacity: 0.25;
+}
+
 .widgets:not(.editing) .widget:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.42),
+    0 0 0 0.5px rgba(255, 255, 255, 0.44),
     0 24px 50px -16px rgba(4, 8, 20, 0.4),
     0 3px 8px rgba(4, 8, 20, 0.12),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+.widget:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .widget.dragging {
   opacity: 0.42;
@@ -764,20 +935,6 @@ code,
 }
 .widgets.editing .widget:active {
   cursor: grabbing;
-}
-[data-theme='dark'] .widget {
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.12),
-    0 18px 40px -14px rgba(0, 0, 0, 0.6),
-    0 2px 6px rgba(0, 0, 0, 0.3),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
-}
-[data-theme='dark'] .widgets:not(.editing) .widget:hover {
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.18),
-    0 26px 54px -16px rgba(0, 0, 0, 0.68),
-    0 3px 8px rgba(0, 0, 0, 0.34),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.18);
 }
 .wg-tools {
   position: absolute;
@@ -816,7 +973,7 @@ code,
 
 .wg-k {
   flex: 0 0 auto;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.55px;
   color: var(--wg-t2);
@@ -867,11 +1024,11 @@ code,
   stroke: rgba(120, 120, 128, 0.2);
 }
 .wg-ring .val {
-  stroke: #34c759;
+  stroke: var(--wg-ok);
   transition: stroke-dashoffset 0.5s var(--ease);
 }
 .widget[data-id='count'] .wg-ring .val {
-  stroke: #0a84ff;
+  stroke: var(--wg-accent);
 }
 
 .wg-clock {
@@ -933,7 +1090,7 @@ code,
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wg-t2);
 }
 .wg-foot .d {
@@ -950,21 +1107,21 @@ code,
   gap: 3px;
   font-size: 11px;
   font-weight: 600;
-  color: #1a8f3c;
-  background: rgba(52, 199, 89, 0.16);
+  color: var(--wg-ok);
+  background: var(--wg-ok-soft);
   padding: 1px 6px;
   border-radius: 20px;
   margin-top: 6px;
 }
 [data-theme='dark'] .wg-trend {
-  color: #6ee7a0;
+  color: var(--wg-ok);
 }
 .wg-trend.down {
-  color: #a05a00;
-  background: rgba(255, 159, 10, 0.18);
+  color: var(--wg-warn);
+  background: var(--wg-warn-soft);
 }
 [data-theme='dark'] .wg-trend.down {
-  color: #ffcc66;
+  color: var(--wg-warn);
 }
 
 .wg-apps {
@@ -981,7 +1138,7 @@ code,
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wg-t1);
   cursor: default;
   border-radius: 10px;
@@ -1054,7 +1211,7 @@ code,
   margin-top: 10px;
   padding-top: 9px;
   border-top: 0.5px solid var(--wg-line);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wg-t2);
 }
 .wg-sum b {
@@ -1094,20 +1251,20 @@ code,
   text-overflow: ellipsis;
 }
 .wg-row .sub {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wg-t2);
 }
 .wg-row .tag {
-  font-size: 10px;
+  font-size: 11px;
   padding: 1px 6px;
   border-radius: 20px;
   white-space: nowrap;
-  background: rgba(52, 199, 89, 0.16);
-  color: #1a8f3c;
+  background: var(--wg-ok-soft);
+  color: var(--wg-ok);
 }
 .wg-row .tag.warn {
-  background: rgba(255, 159, 10, 0.18);
-  color: #a05a00;
+  background: var(--wg-warn-soft);
+  color: var(--wg-warn);
 }
 .wg-row .tag.mute {
   background: rgba(120, 120, 128, 0.16);
@@ -1123,28 +1280,28 @@ code,
   width: 7px;
   height: 7px;
   border-radius: 4px;
-  background: #34c759;
+  background: var(--wg-ok);
   flex: 0 0 auto;
-  box-shadow: 0 0 6px rgba(52, 199, 89, 0.7);
+  box-shadow: 0 0 6px var(--wg-ok-soft);
 }
 .wg-row .d.warn {
-  background: #ff9f0a;
-  box-shadow: 0 0 6px rgba(255, 159, 10, 0.7);
+  background: var(--wg-warn);
+  box-shadow: 0 0 6px var(--wg-warn-soft);
 }
 .wg-row .d.off {
   background: #a1a1a6;
   box-shadow: none;
 }
 .wg-row .ms {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wg-t2);
   font-variant-numeric: tabular-nums;
 }
 .wg-btn {
-  font-size: 10.5px;
+  font-size: 11px;
   padding: 2px 10px;
   border-radius: 20px;
-  background: var(--accent);
+  background: var(--wg-accent);
   color: #fff;
   white-space: nowrap;
   border: none;
@@ -1237,7 +1394,7 @@ body.editing .wg-add {
 }
 .wg-add-item .sz {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--wg-t2);
 }
 .wg-add-empty {
@@ -1260,7 +1417,11 @@ body.editing .wg-add {
   gap: 7px;
   padding: 8px 10px;
   /* 顶部亮、底部沉：一条真正有「搁板」感的玻璃，而不是一块均匀的半透明矩形 */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.44));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, var(--dock-alpha-top)),
+    rgba(255, 255, 255, var(--dock-alpha-bottom))
+  );
   border-radius: 24px;
   z-index: 9500;
   transition: background 0.28s;
@@ -1274,7 +1435,11 @@ body.editing .wg-add {
 [data-theme='dark'] .dock {
   /* 没有背板模糊之后，白色 0.1 在深色壁纸上几乎看不见托盘；
      换成深色半透明，才读得出「一条玻璃条」而不是「几个图标浮在壁纸上」 */
-  background: linear-gradient(180deg, rgba(46, 46, 54, 0.66), rgba(24, 24, 30, 0.62));
+  background: linear-gradient(
+    180deg,
+    rgba(46, 46, 54, var(--dock-alpha-top)),
+    rgba(24, 24, 30, var(--dock-alpha-bottom))
+  );
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.17),
     0 30px 60px -18px rgba(0, 0, 0, 0.72),
@@ -1630,7 +1795,7 @@ body.editing .wg-add {
   padding: 0 5px;
   border-radius: 5px;
   background: var(--surface-sunken);
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--t2);
 }
@@ -1688,7 +1853,7 @@ body.editing .wg-add {
 }
 .gw-tab-code {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
 }
 .gw-tab.on .gw-tab-code {
@@ -1812,7 +1977,7 @@ body.editing .wg-add {
   box-shadow: 0 0.5px 2px rgba(0, 0, 0, 0.5);
 }
 .seg-item .n {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
   font-variant-numeric: tabular-nums;
 }
@@ -2058,7 +2223,7 @@ body.editing .wg-add {
   height: 19px;
   padding: 0 7px;
   border-radius: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.1px;
   border: 0.5px solid transparent;
@@ -2131,7 +2296,7 @@ body.editing .wg-add {
 .chip {
   display: inline-flex;
   align-items: center;
-  font-size: 10.5px;
+  font-size: 11px;
   padding: 0.5px 6px;
   border-radius: 4px;
   background: rgba(120, 120, 128, 0.12);
@@ -2199,7 +2364,7 @@ table.tbl th {
   z-index: 1;
   text-align: left;
   font-weight: 600;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.35px;
   color: var(--t3);
   background: var(--surface-strong);
@@ -2364,7 +2529,7 @@ table.tbl tbody tr:hover td {
   flex: 0 0 auto;
 }
 .cfg-side-t {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
   letter-spacing: 0.3px;
 }
@@ -2399,7 +2564,7 @@ table.tbl tbody tr:hover td {
   border-radius: 8px;
   background: var(--surface-strong);
   color: var(--t3);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 1px;
   cursor: pointer;
 }
@@ -2487,7 +2652,7 @@ table.tbl tbody tr:hover td {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
   white-space: nowrap;
   overflow: hidden;
@@ -2636,7 +2801,7 @@ table.tbl tbody tr:hover td {
   border: 0.5px solid var(--line-strong);
   background: var(--surface-strong);
   color: var(--t2);
-  font-size: 10.5px;
+  font-size: 11px;
   cursor: pointer;
   transition:
     color 0.12s ease,
@@ -2660,7 +2825,7 @@ table.tbl tbody tr:hover td {
   background: var(--ok-soft);
   color: var(--ok);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 .gg-live i {
   width: 5px;
@@ -2673,11 +2838,11 @@ table.tbl tbody tr:hover td {
   border-radius: 5px;
   background: var(--danger-soft);
   color: var(--danger);
-  font-size: 10px;
+  font-size: 11px;
 }
 .gg-global-note {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
 }
 .gg-global-grid {
@@ -2726,7 +2891,7 @@ table.tbl tbody tr:hover td {
   font-size: 9px;
 }
 .gg-gcard-s {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3092,7 +3257,7 @@ table.tbl tbody tr:hover td {
   width: auto;
   min-width: 40px;
   padding: 0 4px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 .gg-zoomctl .sep {
@@ -3173,7 +3338,7 @@ table.tbl tbody tr:hover td {
 }
 .gnode-n {
   flex: 0 0 auto;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
   font-variant-numeric: tabular-nums;
 }
@@ -3186,7 +3351,7 @@ table.tbl tbody tr:hover td {
   border-radius: 50%;
   border: 0.5px solid var(--line-strong);
   background: var(--body-bg);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--t2);
@@ -3201,7 +3366,7 @@ table.tbl tbody tr:hover td {
 }
 .gnode-m {
   margin-top: 3px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3209,7 +3374,7 @@ table.tbl tbody tr:hover td {
 }
 .gnode-sub {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3302,7 +3467,7 @@ table.tbl tbody tr:hover td {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t2);
 }
 .gnode-backend .mono {
@@ -3339,7 +3504,7 @@ table.tbl tbody tr:hover td {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--t3);
@@ -3358,7 +3523,7 @@ table.tbl tbody tr:hover td {
 }
 .ins-note {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.6;
   color: var(--t3);
 }
@@ -3368,7 +3533,7 @@ table.tbl tbody tr:hover td {
   gap: 5px;
 }
 .ins-sec-t {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.4px;
   color: var(--t3);
@@ -3419,7 +3584,7 @@ table.tbl tbody tr:hover td {
 }
 .ins-kv span {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
 }
 .ins-kv b {
@@ -3492,7 +3657,7 @@ table.tbl tbody tr:hover td {
 .ins-link-s {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
   text-align: right;
   overflow: hidden;
@@ -3506,7 +3671,7 @@ table.tbl tbody tr:hover td {
 }
 .ins-warn {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.55;
   color: var(--warn);
 }
@@ -3523,7 +3688,7 @@ table.tbl tbody tr:hover td {
 }
 .ins-empty-d {
   margin: 0;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.65;
   color: var(--t3);
 }
@@ -3534,7 +3699,7 @@ table.tbl tbody tr:hover td {
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
 }
 .ins-legend li {
@@ -3795,11 +3960,11 @@ html.theme-fading * {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t3);
 }
 .tp-now b {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--t1);
 }
 .tp-now b.mute {
@@ -3853,7 +4018,7 @@ html.theme-fading * {
   color: var(--t1);
 }
 .tp-item-s {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--t3);
 }
 .tp-item-cur {
@@ -3868,4 +4033,916 @@ html.theme-fading * {
   gap: 6px;
   padding-top: 7px;
   border-top: 0.5px solid var(--line);
+}
+
+/* ============================================================
+   配置编辑弹框（.df-*）
+   ------------------------------------------------------------
+   弹框是「一次只改一个对象」的地方：头认对象、中间按人读的顺序分组、
+   脚永远看得见保存与校验。头/体/脚三段固定，高级配置展开后表单再长，
+   也不用滚到底才能点保存。颜色全部取语义 token，浅色/深色同一套结构。
+   ============================================================ */
+.df-dialog {
+  max-height: calc(100vh - 48px);
+  overscroll-behavior: contain;
+}
+@supports (height: 100dvh) {
+  .df-dialog {
+    max-height: calc(100dvh - 48px);
+  }
+}
+.df-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 15px 20px 12px;
+  border-bottom: 0.5px solid var(--line);
+}
+.df-desc {
+  margin: 4px 0 0;
+  max-width: 62ch;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  /* 窄窗口里别把「键。」单独甩到第二行 */
+  text-wrap: pretty;
+}
+.df-head-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.df-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.df-dirty i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+/* 关闭按钮的点击区比工具条里的 btn-sm 大一圈，别让人瞄半天 */
+.df-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.df-body {
+  /* 焦点不被固定头/脚遮住：滚动定位时上下各留一段 */
+  scroll-padding-block: 12px 20px;
+}
+.df-foot {
+  flex: 0 0 auto;
+  padding: 10px 20px 12px;
+  border-top: 0.5px solid var(--line);
+  background: transparent;
+}
+.df-foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.df-foot-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.df-progress {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.df-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.df-keys {
+  margin-right: 2px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+/* 校验摘要：可聚焦、可点击定位到字段，不是只变灰的按钮 */
+.df-issues {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-bottom: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 0.5px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.df-issues > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.df-issues ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.df-issues button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.df-issues button:hover {
+  color: var(--ink);
+}
+.btn.is-unready {
+  opacity: 0.52;
+  cursor: pointer;
+}
+.btn.is-unready:active {
+  transform: none;
+}
+
+/* 未保存保护：贴在头下面的一条，不叠第二个遮罩、不套第二层弹窗 */
+.df-guard {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 9px 20px;
+  border-bottom: 0.5px solid color-mix(in srgb, var(--warn) 32%, transparent);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+  animation: df-in 0.14s ease-out both;
+}
+.df-guard-t {
+  flex: 1 1 auto;
+  min-width: 160px;
+  color: var(--ink);
+}
+.df-guard-a {
+  display: flex;
+  gap: 6px;
+}
+/* 浅橙底上 #ff3b30 太亮；危险文字也走语义 token，深色模式自动换成亮红 */
+.df-guard .btn-danger {
+  color: var(--danger);
+}
+@keyframes df-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 身份条：编辑弹框里最容易看错的是「在改哪一个」，放在正文第一眼 */
+.df-id {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.df-id-k {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.35px;
+  color: var(--ink-soft);
+}
+.df-id-n {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.df-id-n.mono {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.df-id-m {
+  font-size: 11px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* 后果说明：一块轻底 + 一个图标，不用彩色粗左边框 */
+.df-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.df-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--ink-soft);
+}
+.df-notice-t {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.df-notice-a {
+  flex: 0 0 auto;
+}
+.df-notice-warn {
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+  background: var(--warn-soft);
+  color: var(--ink);
+}
+.df-notice-warn > svg {
+  color: var(--warn);
+}
+.df-notice-danger {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: var(--danger-soft);
+  color: var(--ink);
+}
+.df-notice-danger > svg {
+  color: var(--danger);
+}
+
+/* 长表单的分区跳转：两个小胶囊，不是侧边导航、不占一列 */
+.df-jump {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+.df-jump button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 0.5px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.14s var(--ease-soft),
+    color 0.14s var(--ease-soft);
+}
+.df-jump button:hover {
+  color: var(--brand);
+  border-color: var(--brand-line);
+}
+.df-jump button span {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分区靠字号、字重、留白分层——不再往弹框里塞一层卡片 */
+.df-sec {
+  margin-top: 20px;
+}
+.df-sec-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.df-sec-t {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--ink);
+}
+.df-sec-d {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.df-sec-b {
+  margin-top: 10px;
+}
+.df-sec-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.df-sec-toggle:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.df-sec-fold {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.df-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-sunken);
+}
+.df-field-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: -8px;
+}
+.df-field-tools > button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.df-field-tools > button:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.df-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11px;
+}
+.df-undo button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.df-err {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+.df-empty-line {
+  padding: 10px;
+  border: 0.5px dashed var(--line-strong);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.df-addr-row {
+  padding: 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--line);
+  background: var(--surface-sunken);
+}
+.df-addr-row:has(.df-err) {
+  border-color: color-mix(in srgb, var(--danger) 32%, transparent);
+}
+.df-addr-n {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 0.5px solid var(--line-strong);
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .df-head,
+  .df-foot,
+  .df-guard {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .df-dialog .df-body {
+    padding-inline: 14px;
+  }
+  .df-foot-row {
+    flex-wrap: wrap;
+  }
+  .df-foot-note {
+    flex: 1 1 100%;
+  }
+  .df-foot-actions {
+    margin-left: auto;
+  }
+  .df-keys {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .df-guard {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   系统设置：站点图标 / 外观控件
+   ============================================================ */
+.site-icons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.site-icon-btn {
+  width: 62px;
+  padding: 7px 4px 5px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  color: var(--t2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+.site-icon-btn svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+.site-icon-btn:hover {
+  background: var(--surface-hover);
+}
+.site-icon-btn.on {
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.site-icon-btn:focus-visible,
+.seg-item:focus-visible,
+.range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.appearance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 20px;
+}
+.range {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.range-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--t3);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   widget 辅助态：骨架占位、更新时间
+   ============================================================ */
+.wg-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.wg-sk-line {
+  height: 9px;
+  border-radius: 5px;
+  background: currentColor;
+  opacity: 0.14;
+}
+.wg-sk-line.w1 { width: 74%; }
+.wg-sk-line.w2 { width: 52%; }
+.wg-sk-line.w3 { width: 62%; }
+.wg-sk-pill {
+  width: 44%;
+  height: 22px;
+  border-radius: 11px;
+  background: currentColor;
+  opacity: 0.1;
+}
+.wg-updated {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--wg-ink-2);
+  opacity: 0.85;
+}
+@keyframes wg-fresh {
+  0% { opacity: 0.35; transform: translateY(3px); }
+  100% { opacity: 1; transform: none; }
+}
+.wg-fresh {
+  animation: wg-fresh 0.6s var(--ease) both;
+}
+
+/* ============================================================
+   编辑态 / 小组件中心 / 自由摆放
+   ============================================================ */
+.widgets.free {
+  grid-auto-flow: row;
+}
+.widgets.free .widget {
+  grid-column: var(--col, 1) / span var(--w, 1);
+  grid-row: var(--row, 1) / span var(--h, 1);
+}
+
+/* `.widget > *` 会把直接子元素抬成 relative，这两个控件要显式抢回 absolute */
+.widget > .wg-remove,
+.widget > .wg-resize {
+  position: absolute;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(60, 60, 68, 0.62);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: background 0.14s, transform 0.14s var(--ease);
+}
+.widget > .wg-remove {
+  top: 7px;
+  left: 7px;
+}
+.widget > .wg-resize {
+  right: 7px;
+  bottom: 7px;
+  border-radius: 7px;
+  touch-action: none;
+}
+.widget > .wg-remove:hover {
+  background: #ff453a;
+  transform: scale(1.08);
+}
+.widget > .wg-resize:hover {
+  background: rgba(10, 132, 255, 0.9);
+}
+.widget > .wg-remove svg,
+.widget > .wg-resize svg {
+  width: 13px;
+  height: 13px;
+}
+.widget > .wg-remove:focus-visible,
+.widget > .wg-resize:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes wg-jiggle {
+  from { transform: rotate(-0.32deg) translateY(0); }
+  to { transform: rotate(0.32deg) translateY(-1px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .widgets.editing .widget {
+    animation: wg-jiggle 0.3s ease-in-out infinite alternate;
+  }
+  .widgets.editing .widget:nth-child(2n) {
+    animation-delay: -0.15s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .widgets.editing .widget {
+    animation: none;
+  }
+}
+
+/* 「添加组件」按钮（旧版是个 210px 文字面板，这里覆盖成按钮） */
+button.wg-add {
+  position: fixed;
+  right: 18px;
+  bottom: 94px;
+  z-index: 9400;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 0.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(248, 248, 252, 0.92);
+  color: var(--t1);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+button.wg-add:hover {
+  background: #fff;
+}
+button.wg-add .plus {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+}
+button.wg-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+}
+.switch-row input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+/* ---- 小组件中心 ---- */
+@keyframes gallery-in {
+  from { opacity: 0; transform: translate(-50%, 14px) scale(0.985); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+.gallery {
+  position: fixed;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 40px));
+  max-height: min(470px, calc(100vh - 150px));
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 10px;
+  border-radius: 20px;
+  background: rgba(248, 248, 252, 0.96);
+  color: var(--t1);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.7),
+    0 30px 80px -20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  animation: gallery-in 0.28s var(--ease) both;
+}
+[data-theme='dark'] .gallery {
+  background: rgba(32, 32, 38, 0.96);
+  box-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 30px 80px -20px rgba(0, 0, 0, 0.78),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.gallery-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.gallery-search {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 11px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface-strong);
+  color: var(--t1);
+  font: inherit;
+  font-size: 13px;
+}
+.gallery-search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.gallery-done {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gallery-cats {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.gallery-cat {
+  padding: 4px 11px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 20px;
+  background: none;
+  color: var(--t2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.gallery-cat.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.gallery-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 2px 2px 8px;
+}
+.gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 26px 0;
+  color: var(--t3);
+  font-size: 12px;
+}
+.gallery-card {
+  border: 0.5px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  cursor: grab;
+}
+.gallery-card:active { cursor: grabbing; }
+/* 拖出卡片时把面板淡出让桌面可见；pointer-events 关掉后整块桌面都能接 drop。
+   头部按钮始终可点：即便某个浏览器漏派 dragend，也不会把用户锁在半透明面板里 */
+.gallery.dragging-away {
+  opacity: 0.26;
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease-soft);
+}
+.gallery.dragging-away .gallery-head,
+.gallery.dragging-away .gallery-done {
+  pointer-events: auto;
+  opacity: 1;
+}
+.gp-visual {
+  position: relative;
+  height: 66px;
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 10px;
+  background: linear-gradient(150deg, rgba(10, 132, 255, 0.22), rgba(120, 108, 255, 0.16));
+}
+.gp-visual[data-id='enabled'] { background: linear-gradient(150deg, rgba(52, 199, 89, 0.24), rgba(10, 132, 255, 0.12)); }
+.gp-visual[data-id='unpushed'],
+.gp-visual[data-id='attention'] { background: linear-gradient(150deg, rgba(255, 159, 10, 0.26), rgba(255, 99, 72, 0.14)); }
+.gp-visual[data-id='clock'] { background: linear-gradient(150deg, rgba(120, 108, 255, 0.26), rgba(206, 112, 255, 0.14)); }
+.gp-k,
+.gp-bars i {
+  display: block;
+  height: 6px;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.24;
+}
+.gp-k { width: 38%; margin-bottom: 9px; }
+.gp-bars { display: flex; flex-direction: column; gap: 5px; width: 72%; }
+.gp-bars .w1 { width: 100%; }
+.gp-bars .w2 { width: 72%; }
+.gp-bars .w3 { width: 84%; }
+.gp-dot {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.18;
+}
+.gp-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.gp-desc {
+  font-size: 11px;
+  color: var(--t3);
+  line-height: 1.45;
+  min-height: 30px;
+}
+.gp-sizes {
+  display: flex;
+  gap: 4px;
+}
+.gp-size {
+  padding: 2px 8px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 6px;
+  background: none;
+  color: var(--t2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.gp-size.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.gp-add {
+  margin-top: 3px;
+  padding: 5px 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gp-add:hover { filter: brightness(1.08); }
+.gallery-foot {
+  flex: 0 0 auto;
+  padding-top: 8px;
+  font-size: 11px;
+  color: var(--t3);
+  text-align: center;
+}
+
+/* 拖放落点预览：absolute 脱离 grid，不会把 dense 排布挤乱 */
+@keyframes wg-hint-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.wg-drop-hint {
+  position: absolute;
+  z-index: 5;
+  left: calc(var(--dh-x, 0) * (var(--wg-unit) + var(--wg-gap)));
+  top: calc(var(--dh-y, 0) * (var(--wg-unit) + var(--wg-gap)));
+  width: calc(2 * var(--wg-unit) + var(--wg-gap));
+  height: var(--wg-unit);
+  border: 2px dashed rgba(10, 132, 255, 0.9);
+  border-radius: var(--wg-radius);
+  background: rgba(10, 132, 255, 0.13);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.08);
+  pointer-events: none;
+  animation: wg-hint-in 0.16s var(--ease-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wg-drop-hint { animation: none; }
 }

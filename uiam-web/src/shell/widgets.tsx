@@ -1,10 +1,13 @@
 /**
  * 桌面组件的具体渲染。
  *
- * 一条硬规矩：**这里没有假数据**。原型上的「在线用户 128」「今日登录 1,204」是
- * 为了看排版，真跑起来必须换成接口里真有的东西，否则桌面上第一个数字就是错的。
- * 所以 8 个组件全部由「网关实例 + 发布历史」两份真实数据推导：
- * 实例数、启用数、实例状态、最近发布、待推送、待处理。
+ * 一条硬规矩：**这里没有假数据**。8 个组件全部由「网关实例 + 发布历史」两份真实
+ * 数据推导。加载态用半透明骨架形状而不是「加载中…」文字（HIG 要求 placeholder
+ * 由静态界面组件 + 半透明形状组成），大尺寸组件才显示「更新于 …」——widget
+ * 不做实时刷新，说清数据年龄比假装在动更诚实。
+ *
+ * `size` 决定信息增量：small 只给一个关键数字，medium 加一行趋势，large/XL 才
+ * 展开列表。不是把小卡内容等比放大去填满大卡。
  */
 import { useEffect, useState } from 'react'
 import { APPS } from '../apps/meta'
@@ -14,7 +17,7 @@ import { relativeTime } from '../lib/format'
 import type { Gateway, Release } from '../lib/types'
 import { useOverview, type ReleaseRow } from './overview'
 import { useShell } from './state'
-import type { WidgetId } from './useWidgetLayout'
+import type { WidgetId, WidgetSize } from './useWidgetLayout'
 
 /** 每个实例「最新一版」的状态；桌面上所有跟发布有关的判断都基于它 */
 interface Issue {
@@ -39,12 +42,42 @@ function computeIssues(gateways: Gateway[], releases: ReleaseRow[]): Issue[] {
   return issues
 }
 
+/** 数据加载中的占位：静态标题 + 半透明形状，不写「加载中…」 */
+export function WidgetSkeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="wg-skeleton" aria-hidden="true">
+      <div className="wg-sk-pill" />
+      {Array.from({ length: lines }, (_, i) => (
+        <div key={i} className={`wg-sk-line w${(i % 3) + 1}`} />
+      ))}
+    </div>
+  )
+}
+
+/** 只在 medium 以上显示，避免 small 被一行时间戳挤掉主信息 */
+export function WidgetUpdatedAt() {
+  const { updatedAt, loading } = useOverview()
+  if (!updatedAt) return null
+  return (
+    <div className="wg-updated">
+      {loading ? '正在更新…' : `更新于 ${relativeTime(updatedAt)}`}
+    </div>
+  )
+}
+
 /* ---------- 时钟 ---------- */
 function ClockWidget() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 15000)
-    return () => window.clearInterval(t)
+    let timer: number
+    const tick = () => {
+      setNow(new Date())
+      const d = new Date()
+      // 对齐到下一分钟刷新，而不是每 15s 无脑刷：时钟不会漂在分钟边界外
+      timer = window.setTimeout(tick, (60 - d.getSeconds()) * 1000 - d.getMilliseconds() + 20)
+    }
+    tick()
+    return () => window.clearTimeout(timer)
   }, [])
   const p = (n: number) => String(n).padStart(2, '0')
   const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()]
@@ -61,43 +94,55 @@ function ClockWidget() {
 }
 
 /* ---------- 网关实例数 ---------- */
-function CountWidget() {
+function CountWidget({ size }: { size: WidgetSize }) {
   const { gateways, loading } = useOverview()
+  const n = gateways.length
   return (
     <>
       <div className="wg-k">网关实例</div>
-      <div className="wg-kpi">
-        <div className="wg-num">
-          {loading && gateways.length === 0 ? '—' : gateways.length}
-          <small>个</small>
+      {loading && n === 0 ? (
+        <WidgetSkeleton lines={1} />
+      ) : (
+        <div className="wg-kpi">
+          {/* key 变化触发一次 0.6s 的更新动画（HIG：更新动画不超过 2s） */}
+          <div className="wg-num wg-fresh" key={n}>
+            {n}
+            <small>个</small>
+          </div>
+          {size !== 'small' && (
+            <div className="wg-updated" style={{ marginTop: 4 }}>
+              共 {gateways.filter((g) => g.enabled).length} 个启用
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </>
   )
 }
 
 /* ---------- 启用中 ---------- */
-function EnabledWidget() {
+function EnabledWidget({ size }: { size: WidgetSize }) {
   const { gateways } = useOverview()
   const enabled = gateways.filter((g) => g.enabled).length
   const pct = gateways.length ? Math.round((enabled / gateways.length) * 100) : 0
   const disabled = gateways.length - enabled
-  // 环的周长固定（r=18），只改 dashoffset——不新增任何布局计算
   const C = 2 * Math.PI * 18
   return (
     <>
       <div className="wg-k">启用中</div>
       <div className="wg-kpi row">
         <div>
-          <div className="wg-num">
+          <div className="wg-num wg-fresh" key={enabled}>
             {enabled}
             <small>/ {gateways.length}</small>
           </div>
-          <div>
-            <span className={`wg-trend${disabled > 0 ? ' down' : ''}`}>
-              {disabled > 0 ? `▲ ${disabled} 个停用` : `▲ ${pct}%`}
-            </span>
-          </div>
+          {size !== 'small' && (
+            <div>
+              <span className={`wg-trend${disabled > 0 ? ' down' : ''}`}>
+                {disabled > 0 ? `▲ ${disabled} 个停用` : `▲ ${pct}%`}
+              </span>
+            </div>
+          )}
         </div>
         <svg className="wg-ring" viewBox="0 0 44 44" aria-hidden="true">
           <circle className="track" cx="22" cy="22" r="18" />
@@ -134,10 +179,11 @@ function AppsWidget() {
 }
 
 /* ---------- 实例状态 ---------- */
-function NodesWidget() {
+function NodesWidget({ size }: { size: WidgetSize }) {
   const { gateways, loading, error, reload } = useOverview()
   const shell = useShell()
   const enabled = gateways.filter((g) => g.enabled).length
+  const max = size === 'small' ? 2 : size === 'medium' ? 3 : size === 'xl' ? 8 : 6
   if (error) {
     return (
       <>
@@ -160,83 +206,94 @@ function NodesWidget() {
   return (
     <>
       <div className="wg-k">实例状态</div>
-      <div className="wg-list">
-        {gateways.slice(0, 4).map((g) => (
-          <div
-            key={g.id}
-            className="wg-row"
-            style={{ cursor: 'pointer' }}
-            onClick={() => {
-              selectGateway(g.id)
-              shell.openApp('gateway')
-            }}
-          >
-            <span className={`d ${g.enabled ? '' : 'off'}`} />
-            <span className="grow">
-              <span className="nm">{g.name}</span>{' '}
-              <span className="sub mono">{g.consulKey}</span>
-            </span>
-            <span className="ms">{relativeTime(g.updateMs)}</span>
+      {loading && gateways.length === 0 ? (
+        <WidgetSkeleton />
+      ) : (
+        <>
+          <div className="wg-list">
+            {gateways.slice(0, max).map((g) => (
+              <div
+                key={g.id}
+                className="wg-row"
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  selectGateway(g.id)
+                  shell.openApp('gateway')
+                }}
+              >
+                <span className={`d ${g.enabled ? '' : 'off'}`} />
+                <span className="grow">
+                  <span className="nm">{g.name}</span>{' '}
+                  <span className="sub mono">{g.consulKey}</span>
+                </span>
+                <span className="ms">{relativeTime(g.updateMs)}</span>
+              </div>
+            ))}
+            {gateways.length === 0 && (
+              <div className="wg-row">
+                <span className="grow">
+                  <span className="sub">还没有网关实例，去「网关配置」新建一个</span>
+                </span>
+              </div>
+            )}
           </div>
-        ))}
-        {gateways.length === 0 && (
-          <div className="wg-row">
-            <span className="grow">
-              <span className="sub">{loading ? '加载中…' : '还没有网关实例，去「网关配置」新建一个'}</span>
-            </span>
-          </div>
-        )}
-      </div>
-      {gateways.length > 0 && (
-        <div className="wg-sum">
-          <span>
-            <b>{enabled}</b> 启用
-          </span>
-          <span>
-            <b>{gateways.length - enabled}</b> 停用
-          </span>
-          <span className="wg-sum-all">共 {gateways.length} 个实例</span>
-        </div>
+          {gateways.length > 0 && size !== 'small' && (
+            <div className="wg-sum">
+              <span>
+                <b>{enabled}</b> 启用
+              </span>
+              <span>
+                <b>{gateways.length - enabled}</b> 停用
+              </span>
+              <span className="wg-sum-all">共 {gateways.length} 个实例</span>
+            </div>
+          )}
+        </>
       )}
     </>
   )
 }
 
 /* ---------- 最近发布 ---------- */
-function ReleasesWidget() {
+function ReleasesWidget({ size }: { size: WidgetSize }) {
   const { releases, loading } = useOverview()
-  const rows = releases.slice(0, 3)
+  const max = size === 'xl' ? 8 : size === 'large' ? 6 : 3
+  const rows = releases.slice(0, max)
   return (
     <>
       <div className="wg-k">最近发布</div>
-      <div className="wg-list">
-        {rows.map(({ gateway, release }) => (
-          <div key={release.id} className="wg-row">
-            <span className="grow">
-              <span className="nm">
-                v{release.version} · {gateway.name}
-              </span>{' '}
-              <span className="sub">{relativeTime(release.createMs)}</span>
-            </span>
-            <span className={`tag ${release.pushed ? '' : 'warn'}`}>
-              {release.pushed ? '已推送' : '未推送'}
-            </span>
-          </div>
-        ))}
-        {rows.length === 0 && (
-          <div className="wg-row">
-            <span className="grow">
-              <span className="sub">{loading ? '加载中…' : '还没有发布记录'}</span>
-            </span>
-          </div>
-        )}
-      </div>
+      {loading && rows.length === 0 ? (
+        <WidgetSkeleton />
+      ) : (
+        <div className="wg-list">
+          {rows.map(({ gateway, release }) => (
+            <div key={release.id} className="wg-row">
+              <span className="grow">
+                <span className="nm">
+                  v{release.version} · {gateway.name}
+                </span>{' '}
+                <span className="sub">{relativeTime(release.createMs)}</span>
+              </span>
+              <span className={`tag ${release.pushed ? '' : 'warn'}`}>
+                {release.pushed ? '已推送' : '未推送'}
+              </span>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <div className="wg-row">
+              <span className="grow">
+                <span className="sub">还没有发布记录</span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </>
   )
 }
 
 /* ---------- 待推送 ---------- */
-function UnpushedWidget() {
+function UnpushedWidget({ size }: { size: WidgetSize }) {
   const { gateways, releases } = useOverview()
   const issues = computeIssues(gateways, releases)
   const failed = issues.filter((i) => i.kind === 'failed').length
@@ -244,55 +301,11 @@ function UnpushedWidget() {
     <>
       <div className="wg-k">待推送</div>
       <div className="wg-kpi">
-        <div className="wg-num">{issues.length}</div>
-        <div>
-          <span className={`wg-trend${failed > 0 ? ' down' : ''}`}>
-            {failed > 0 ? `${failed} 条推送失败` : issues.length > 0 ? '含未发布实例' : '全部已同步'}
-          </span>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ---------- 待处理 ---------- */
-function AttentionWidget() {
-  const { gateways, releases, loading } = useOverview()
-  const shell = useShell()
-  const issues = computeIssues(gateways, releases)
-  const rows = issues.slice(0, 3)
-  return (
-    <>
-      <div className="wg-k">待处理</div>
-      <div className="wg-list">
-        {rows.map((it) => (
-          <div key={it.gateway.id} className="wg-row">
-            <span className="grow">
-              <span className="nm">{it.gateway.name}</span>{' '}
-              <span className="sub">
-                {it.kind === 'never'
-                  ? '从未发布，网关侧读不到配置'
-                  : `v${it.release?.version} 已生成但没写进 KV`}
-              </span>
-            </span>
-            <button
-              className="wg-btn"
-              onClick={() => {
-                selectGateway(it.gateway.id)
-                shell.openApp('gateway')
-              }}
-            >
-              去发布
-            </button>
-          </div>
-        ))}
-        {rows.length === 0 && (
-          <div className="wg-row">
-            <span className="d" />
-            <span className="grow">
-              <span className="sub">
-                {loading ? '加载中…' : '没有待处理项——所有启用实例的最新版本都已推送'}
-              </span>
+        <div className="wg-num wg-fresh" key={issues.length}>{issues.length}</div>
+        {size !== 'small' && (
+          <div>
+            <span className={`wg-trend${failed > 0 ? ' down' : ''}`}>
+              {failed > 0 ? `${failed} 条推送失败` : issues.length > 0 ? '含未发布实例' : '全部已同步'}
             </span>
           </div>
         )}
@@ -301,24 +314,73 @@ function AttentionWidget() {
   )
 }
 
-export function WidgetBody({ id }: { id: WidgetId }) {
+/* ---------- 待处理 ---------- */
+function AttentionWidget({ size }: { size: WidgetSize }) {
+  const { gateways, releases, loading } = useOverview()
+  const shell = useShell()
+  const issues = computeIssues(gateways, releases)
+  const max = size === 'xl' ? 6 : size === 'large' ? 5 : 3
+  const rows = issues.slice(0, max)
+  return (
+    <>
+      <div className="wg-k">待处理</div>
+      {loading && issues.length === 0 ? (
+        <WidgetSkeleton />
+      ) : (
+        <div className="wg-list">
+          {rows.map((it) => (
+            <div key={it.gateway.id} className="wg-row">
+              <span className="grow">
+                <span className="nm">{it.gateway.name}</span>{' '}
+                <span className="sub">
+                  {it.kind === 'never'
+                    ? '从未发布，网关侧读不到配置'
+                    : `v${it.release?.version} 已生成但没写进 KV`}
+                </span>
+              </span>
+              <button
+                className="wg-btn"
+                onClick={() => {
+                  selectGateway(it.gateway.id)
+                  shell.openApp('gateway')
+                }}
+              >
+                去发布
+              </button>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <div className="wg-row">
+              <span className="d" />
+              <span className="grow">
+                <span className="sub">没有待处理项——所有启用实例的最新版本都已推送</span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+export function WidgetBody({ id, size }: { id: WidgetId; size: WidgetSize }) {
   switch (id) {
     case 'clock':
       return <ClockWidget />
     case 'count':
-      return <CountWidget />
+      return <CountWidget size={size} />
     case 'enabled':
-      return <EnabledWidget />
+      return <EnabledWidget size={size} />
     case 'apps':
       return <AppsWidget />
     case 'nodes':
-      return <NodesWidget />
+      return <NodesWidget size={size} />
     case 'releases':
-      return <ReleasesWidget />
+      return <ReleasesWidget size={size} />
     case 'unpushed':
-      return <UnpushedWidget />
+      return <UnpushedWidget size={size} />
     case 'attention':
-      return <AttentionWidget />
+      return <AttentionWidget size={size} />
     default:
       return null
   }

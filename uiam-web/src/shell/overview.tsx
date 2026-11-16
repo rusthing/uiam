@@ -30,6 +30,8 @@ interface Overview {
   gateways: Gateway[]
   releases: ReleaseRow[]
   loading: boolean
+  /** 最近一次成功拉到数据的时间；组件用它显示「更新于 …」 */
+  updatedAt: number
   error?: Error
   reload: () => void
 }
@@ -41,6 +43,7 @@ export function OverviewProvider({ children }: { children: ReactNode }) {
   const { gateways, loading, error, reload } = useGatewayList()
   const [rows, setRows] = useState<ReleaseRow[]>([])
   const [fetching, setFetching] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState(0)
   const key = gateways.map((g) => g.id).join(',')
 
   useEffect(() => {
@@ -68,6 +71,7 @@ export function OverviewProvider({ children }: { children: ReactNode }) {
             .flat()
             .sort((a, b) => Number(b.release.createMs) - Number(a.release.createMs)),
         )
+        setUpdatedAt(Date.now())
       })
       .finally(() => {
         if (!cancelled) setFetching(false)
@@ -85,10 +89,11 @@ export function OverviewProvider({ children }: { children: ReactNode }) {
       gateways,
       releases: rows,
       loading: loading || fetching,
+      updatedAt,
       error,
       reload: refresh,
     }),
-    [gateways, rows, loading, fetching, error, refresh],
+    [gateways, rows, loading, fetching, updatedAt, error, refresh],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
