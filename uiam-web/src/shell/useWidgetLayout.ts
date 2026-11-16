@@ -374,15 +374,34 @@ export function useWidgetLayout() {
     update((prev) => ({ ...prev, items: prev.items.filter((it) => it.id !== id) }))
   }, [update])
 
-  /** 尺寸变化后原地放不下就挪到最近空位 */
-  const placeAtSize = useCallback(
+  /**
+   * 改尺寸时卡片钉在原位，放不下的部分把周围卡片推开——不再把
+   * 自己「就近挪走」，否则手柄会从鼠标下面跑掉。
+   */
+  const resizeAt = useCallback(
     (items: LayoutItem[], id: WidgetId, size: WidgetSize, columns: number): LayoutItem[] => {
       const target = items.find((it) => it.id === id)
       if (!target) return items
-      const occupied = occupiedOf(items, id, columns)
       const { w, h } = gridOf(size, columns)
-      const spot = nearestFree(occupied, w, h, target.x, target.y, columns)
-      return items.map((it) => (it.id === id ? { ...it, size, x: spot.x, y: spot.y } : it))
+      const x = clampX(target.x, w, columns)
+      const y = Math.max(0, target.y)
+      const rect = { x, y, w, h }
+      let next = items.map((it) => (it.id === id ? { ...it, size, x, y } : it))
+      const hits = items
+        .filter((it) => it.id !== id)
+        .map((it) => rectOf(it, columns))
+        .filter((other) => collides(other, rect))
+        .sort(
+          (a, b) =>
+            Math.abs(a.x - x) + Math.abs(a.y - y) - (Math.abs(b.x - x) + Math.abs(b.y - y)),
+        )
+      for (const hit of hits) {
+        const current = next.find((it) => it.id === hit.id)
+        if (!current) continue
+        if (!collides(rectOf(current, columns), rect)) continue
+        next = settleItem(next, hit.id, columns)
+      }
+      return next
     },
     [],
   )
@@ -391,10 +410,10 @@ export function useWidgetLayout() {
     (id: WidgetId, size: WidgetSize, columns = DEFAULT_COLUMNS) => {
       update((prev) => {
         if (!WIDGET_DEFS[id].sizes.includes(size)) return prev
-        return { version: 3, items: placeAtSize(prev.items, id, size, columns) }
+        return { version: 3, items: resizeAt(prev.items, id, size, columns) }
       })
     },
-    [update, placeAtSize],
+    [update, resizeAt],
   )
 
   /** 尺寸手柄：在该组件允许的尺寸里循环 */
@@ -405,10 +424,10 @@ export function useWidgetLayout() {
         if (!item) return prev
         const sizes = WIDGET_DEFS[id].sizes
         const next = sizes[(sizes.indexOf(item.size) + 1) % sizes.length]
-        return { version: 3, items: placeAtSize(prev.items, id, next, columns) }
+        return { version: 3, items: resizeAt(prev.items, id, next, columns) }
       })
     },
-    [update, placeAtSize],
+    [update, resizeAt],
   )
 
   /**

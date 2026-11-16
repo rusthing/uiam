@@ -79,7 +79,12 @@ interface ResizeState {
   id: WidgetId
   startX: number
   startY: number
+  /** 按下时的尺寸档位，整个拖动过程保持不动，便于来回拖动可逆 */
   index: number
+  /** 已经应用到的档位，避免同一档反复写库 */
+  applied: number
+  /** 按下时重新量到的列数，用来计算新尺寸能否放下 */
+  columns: number
   moved: boolean
 }
 
@@ -205,14 +210,18 @@ export function Desktop() {
   }
 
   /* ---------- 自由摆放：pointer 拖动 + 网格吸附 ---------- */
-  const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
-    if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
-    // 列数用「按下这一刻」的容器宽度重新算：窗口/DevTools 改变后，
-    // 挂载时量的旧列数会让 x 上限偏小，表现为「只能上下拖、往右拖不动」。
+  // 列数用「按下这一刻」的容器宽度重新算：窗口/DevTools 改变后，
+  // 挂载时量的旧列数会让 x 上限偏小，表现为「只能上下拖、往右拖不动」。
+  const currentColumns = () => {
     const el = widgetsRef.current
-    const columns = el
+    return el
       ? Math.max(1, Math.floor((el.clientWidth + metrics.gap) / (metrics.unit + metrics.gap)))
       : metrics.columns
+  }
+
+  const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
+    if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
+    const columns = currentColumns()
     if (columns !== metrics.columns) setMetrics((prev) => ({ ...prev, columns }))
     const g = gridOf(it.size, columns)
     pointerRef.current = {
@@ -274,6 +283,8 @@ export function Desktop() {
       startX: e.clientX,
       startY: e.clientY,
       index: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
+      applied: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
+      columns: currentColumns(),
       moved: false,
     }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -282,13 +293,19 @@ export function Desktop() {
   const onResizeMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const r = resizeRef.current
     if (!r) return
-    const delta = Math.max(Math.abs(e.clientX - r.startX), Math.abs(e.clientY - r.startY))
-    if (delta < 8) return
+    const dx = e.clientX - r.startX
+    const dy = e.clientY - r.startY
+    // 有符号位移：往右/下变大，往左/上变小
+    const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
+    if (Math.abs(delta) < 8) return
     r.moved = true
+    const cell = metrics.unit + metrics.gap
+    const step = delta >= 0 ? Math.floor(delta / cell) : Math.ceil(delta / cell)
     const sizes = WIDGET_DEFS[r.id].sizes
-    const step = Math.round(delta / (metrics.unit + metrics.gap))
-    const next = sizes[Math.max(0, Math.min(sizes.length - 1, r.index + step))]
-    if (next) setSize(r.id, next, metrics.columns)
+    const target = Math.max(0, Math.min(sizes.length - 1, r.index + step))
+    if (target === r.applied) return
+    r.applied = target
+    setSize(r.id, sizes[target], r.columns)
   }
 
   const onResizeUp = () => {
@@ -390,7 +407,7 @@ export function Desktop() {
                       onPointerCancel={onResizeUp}
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (!suppressClick.current) cycleSize(it.id, metrics.columns)
+                        if (!suppressClick.current) cycleSize(it.id, currentColumns())
                       }}
                       title="拖动或点击切换尺寸"
                       aria-label={`切换${def.name}尺寸，当前${it.size}`}
