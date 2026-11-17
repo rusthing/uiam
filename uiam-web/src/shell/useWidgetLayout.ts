@@ -114,10 +114,12 @@ const DEFAULT_ORDER: Array<Pick<LayoutItem, 'id' | 'size'>> = [
 const DEFAULT_COLUMNS = 4
 
 /**
- * 读取存档时允许的列数上限。宽屏可能排出 5 列以上，
- * 不能再用默认的 4 列把右边两列的位置裁掉。
+ * 读取存档时允许的最大列数。这里**不是**当前屏幕的列数——宽屏 2560px/75% 缩放
+ * 已经有 13 列，写死 12 会把最右一列的 x 从 12 夹回 11：拖过去松手后
+ * `writePref` 同步广播，`load()` 再读一次就把坐标改小，表现为「右边那格拖不过去」。
+ * 运行时的真实列数由容器宽度算，渲染层再按当前列数 clamp；存档只拦明显的脏数据。
  */
-const STORED_COLUMNS = 12
+const STORED_COLUMNS = 64
 
 const KEY = 'uiam-desktop' as const
 
