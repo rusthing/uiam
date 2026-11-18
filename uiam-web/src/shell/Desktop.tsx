@@ -1,13 +1,9 @@
 /**
  * 桌面：壁纸 + 自由摆放的组件 + 窗口层 + 小组件中心。
  *
- * 每个组件带 x/y 网格坐标，直接 pointer 拖动即可换位置（不需要先进编辑态）：
- * 移动 < 4px 视为点击、打开对应应用；≥ 4px 进入拖拽，松手后抑制这次 click。
- * 编辑态只负责改尺寸、移除、打开小组件中心和恢复默认布局。
- *
- * 尺寸用 `gridOf(size, columns)` 收敛到当前可用列数，窄屏不会让 4 列组件溢出。
- * 点组件非按钮区域会打开对应应用（HIG：widget 的主交互是 deep link）；内部按钮
- * 用 `closest()` 排除，避免「点重试却开了窗口」。
+ * 只有编辑态能拖组件；非编辑态点组件打开对应应用。拖动时组件先跟指针走，
+ * 只有落在网格线或容器边缘 8px 内才吸附；否则松手就停在该像素位置，
+ * 允许和其他组件重叠。内部按钮用 `closest()` 排除，避免「点重试却开了窗口」。
  */
 import {
   useEffect,
@@ -61,16 +57,64 @@ const WIDGET_APP: Record<WidgetId, string> = {
   attention: 'gateway',
 }
 
+interface Metrics {
+  unit: number
+  gap: number
+  columns: number
+  width: number
+  height: number
+}
+
+const DEFAULT_METRICS: Metrics = { unit: 168, gap: 16, columns: 4, width: 0, height: 0 }
+/** 距网格线/容器边缘多少像素内开始吸附 */
+const SNAP_PX = 8
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max))
+
+/** n 格组件的实际像素宽度 */
+function spanPx(n: number, unit: number, gap: number) {
+  return n * unit + (n - 1) * gap
+}
+
+/** 右边界按容器像素宽算，允许进最后一列右边的留白（顶点坐标，单位 = pitch） */
+function maxXFor(w: number, m: Metrics) {
+  const pitch = m.unit + m.gap
+  return Math.max(0, (m.width - spanPx(w, m.unit, m.gap)) / pitch)
+}
+
+/**
+ * 吸附：x/y 各自独立判断。先找网格线，再看容器边（left/top=0，right/bottom
+ * = 组件贴住容器边距时的坐标）；都不够近就原样返回，交给自由落点。
+ * x 始终钳在容器内；y 不封顶，用户可以往下摆再滚动过去。
+ */
+function snapPoint(rawX: number, rawY: number, w: number, h: number, m: Metrics, el: HTMLElement) {
+  const pitch = m.unit + m.gap
+  const maxX = maxXFor(w, m)
+  const maxY = (el.scrollTop + m.height - spanPx(h, m.unit, m.gap)) / pitch
+  const snap = (v: number, targets: number[], upper?: number) => {
+    const px = v * pitch
+    for (const t of targets) {
+      if (t >= 0 && Math.abs(px - t * pitch) <= SNAP_PX) return t
+    }
+    return upper === undefined ? Math.max(0, v) : clamp(v, 0, upper)
+  }
+  return {
+    x: snap(rawX, [0, Math.round(rawX), maxX], maxX),
+    y: snap(rawY, [0, Math.round(rawY), maxY]),
+  }
+}
+
 interface DragState {
   id: WidgetId
   startX: number
   startY: number
   baseX: number
   baseY: number
-  /** 当前尺寸占的列数，用于吸附时限制 x 不越界 */
   w: number
-  /** 按下瞬间重新量到的可用列数，避免用挂载时的旧值把横向拖动锁死 */
-  columns: number
+  h: number
+  /** 按下瞬间量到的容器尺寸，避免拖动过程中因为别的状态变化换算法 */
+  metrics: Metrics
+  maxX: number
   /** 是否已经越过 4px 阈值，决定松手算拖拽还是点击 */
   moved: boolean
 }
@@ -83,17 +127,23 @@ interface ResizeState {
   index: number
   /** 已经应用到的档位，避免同一档反复写库 */
   applied: number
-  /** 按下时重新量到的列数，用来计算新尺寸能否放下 */
   columns: number
+  metrics: Metrics
   moved: boolean
 }
 
 export function Desktop() {
   const shell = useShell()
-  const { layout, add, remove, setSize, cycleSize, move, reset, rest } = useWidgetLayout()
+  const { layout, add, addAt, remove, setSize, cycleSize, move, reset, rest } = useWidgetLayout()
   const [galleryOpen, setGalleryOpen] = useState(false)
-  const [dropHint, setDropHint] = useState<{ x: number; y: number } | null>(null)
-  const [metrics, setMetrics] = useState({ unit: 168, gap: 16, columns: 4 })
+  const [dropHint, setDropHint] = useState<{
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
+  const [dropSize, setDropSize] = useState<WidgetSize | null>(null)
+  const [metrics, setMetrics] = useState<Metrics>(DEFAULT_METRICS)
   const [pointerPos, setPointerPos] = useState<{ id: WidgetId; x: number; y: number } | null>(null)
   const pointerRef = useRef<DragState | null>(null)
   const pointerPosRef = useRef<{ id: WidgetId; x: number; y: number } | null>(null)
@@ -112,19 +162,40 @@ export function Desktop() {
     syncWindowPresence(shell.wins.length > 0)
   }, [shell.wins.length])
 
-  // 单元尺寸来自 CSS 变量，读一次即可；列数随容器宽度变化
+  // 单元尺寸来自 CSS 变量，列数/可用宽度随容器变化；按下指针时也会现量一次
+  const readMetrics = (): Metrics => {
+    const el = widgetsRef.current
+    if (!el) return DEFAULT_METRICS
+    const cs = getComputedStyle(el)
+    const unit = parseFloat(cs.getPropertyValue('--wg-unit')) || 168
+    const gap = parseFloat(cs.getPropertyValue('--wg-gap')) || 16
+    const pitch = unit + gap
+    return {
+      unit,
+      gap,
+      columns: Math.max(1, Math.floor((el.clientWidth + gap) / pitch)),
+      width: el.clientWidth,
+      height: el.clientHeight,
+    }
+  }
+  const refreshMetrics = () => {
+    const next = readMetrics()
+    setMetrics((prev) =>
+      prev.unit === next.unit &&
+      prev.gap === next.gap &&
+      prev.columns === next.columns &&
+      prev.width === next.width &&
+      prev.height === next.height
+        ? prev
+        : next,
+    )
+    return next
+  }
   useEffect(() => {
     const el = widgetsRef.current
     if (!el) return
-    const compute = () => {
-      const cs = getComputedStyle(el)
-      const unit = parseFloat(cs.getPropertyValue('--wg-unit')) || 168
-      const gap = parseFloat(cs.getPropertyValue('--wg-gap')) || 16
-      const columns = Math.max(1, Math.floor((el.clientWidth + gap) / (unit + gap)))
-      setMetrics({ unit, gap, columns })
-    }
-    compute()
-    const ro = new ResizeObserver(compute)
+    refreshMetrics()
+    const ro = new ResizeObserver(refreshMetrics)
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
@@ -170,15 +241,15 @@ export function Desktop() {
   }, [])
 
   /* ---------- 小组件中心 → 桌面：拖到哪就放在哪 ---------- */
-  const gridPointOf = (e: DragEvent<HTMLDivElement>) => {
+  const pointFromDrag = (e: DragEvent<HTMLDivElement>, w: number, h: number, m: Metrics) => {
     const el = widgetsRef.current
     if (!el) return { x: 0, y: 0 }
     const rect = el.getBoundingClientRect()
-    const cell = metrics.unit + metrics.gap
-    return {
-      x: Math.max(0, Math.floor((e.clientX - rect.left + el.scrollLeft) / cell)),
-      y: Math.max(0, Math.floor((e.clientY - rect.top + el.scrollTop) / cell)),
-    }
+    const pitch = m.unit + m.gap
+    // clientX 是视口坐标；容器内容坐标还要加回滚出去的 scrollLeft/scrollTop
+    const rawX = (e.clientX - rect.left + el.scrollLeft) / pitch
+    const rawY = (e.clientY - rect.top + el.scrollTop) / pitch
+    return snapPoint(rawX, rawY, w, h, m, el)
   }
 
   const onGalleryDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -186,8 +257,14 @@ export function Desktop() {
     if (!Array.from(e.dataTransfer.types ?? []).includes(GALLERY_DND_MIME)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
-    const p = gridPointOf(e)
-    setDropHint((prev) => (prev?.x === p.x && prev?.y === p.y ? prev : p))
+    const m = refreshMetrics()
+    const g = gridOf(dropSize ?? 'medium', m.columns)
+    const p = pointFromDrag(e, g.w, g.h, m)
+    setDropHint((prev) =>
+      prev?.x === p.x && prev?.y === p.y && prev?.w === g.w && prev?.h === g.h
+        ? prev
+        : { ...p, w: g.w, h: g.h },
+    )
   }
 
   const onGalleryDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -205,25 +282,19 @@ export function Desktop() {
     if (!WIDGET_DEFS[payload.id] || !rest.includes(payload.id)) return
     e.preventDefault()
 
-    const p = gridPointOf(e)
-    add(payload.id, payload.size, { x: p.x, y: p.y }, metrics.columns)
+    const m = refreshMetrics()
+    const g = gridOf(payload.size, m.columns)
+    const p = pointFromDrag(e, g.w, g.h, m)
+    addAt(payload.id, payload.size, p, maxXFor(g.w, m))
   }
 
-  /* ---------- 自由摆放：pointer 拖动 + 网格吸附 ---------- */
-  // 列数用「按下这一刻」的容器宽度重新算：窗口/DevTools 改变后，
-  // 挂载时量的旧列数会让 x 上限偏小，表现为「只能上下拖、往右拖不动」。
-  const currentColumns = () => {
-    const el = widgetsRef.current
-    return el
-      ? Math.max(1, Math.floor((el.clientWidth + metrics.gap) / (metrics.unit + metrics.gap)))
-      : metrics.columns
-  }
-
+  /* ---------- 自由摆放：仅编辑态，近格/靠边才吸附 ---------- */
   const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
+    // 非编辑态组件只是入口：点开应用，不进入拖动
+    if (!shell.editing) return
     if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
-    const columns = currentColumns()
-    if (columns !== metrics.columns) setMetrics((prev) => ({ ...prev, columns }))
-    const g = gridOf(it.size, columns)
+    const m = refreshMetrics()
+    const g = gridOf(it.size, m.columns)
     pointerRef.current = {
       id: it.id,
       startX: e.clientX,
@@ -231,7 +302,9 @@ export function Desktop() {
       baseX: it.x,
       baseY: it.y,
       w: g.w,
-      columns,
+      h: g.h,
+      metrics: m,
+      maxX: maxXFor(g.w, m),
       moved: false,
     }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -242,18 +315,19 @@ export function Desktop() {
     if (!d) return
     const dx = e.clientX - d.startX
     const dy = e.clientY - d.startY
-    // 先过阈值再进入拖拽，否则点击打开应用会变成「挪了一格」
+    // 先过阈值再进入拖拽，否则编辑态里点一下会变成「挪了一格」
     if (!d.moved && Math.hypot(dx, dy) < 4) return
     // 进入拖拽后阻止默认行为，避免拖动时选到卡片里的文字
     e.preventDefault()
     d.moved = true
-    const cell = metrics.unit + metrics.gap
-    const x = Math.max(
-      0,
-      Math.min(d.baseX + Math.round(dx / cell), Math.max(0, d.columns - d.w)),
-    )
-    const y = Math.max(0, d.baseY + Math.round(dy / cell))
-    const next = { id: d.id, x, y }
+    const pitch = d.metrics.unit + d.metrics.gap
+    const rawX = d.baseX + dx / pitch
+    const rawY = d.baseY + dy / pitch
+    const el = widgetsRef.current
+    const p = el
+      ? snapPoint(rawX, rawY, d.w, d.h, d.metrics, el)
+      : { x: clamp(rawX, 0, d.maxX), y: Math.max(0, rawY) }
+    const next = { id: d.id, ...p }
     pointerPosRef.current = next
     setPointerPos(next)
   }
@@ -263,8 +337,8 @@ export function Desktop() {
     if (!d) return
     if (d.moved) {
       const pos = pointerPosRef.current
-      if (pos && pos.id === d.id) move(d.id, pos.x, pos.y, d.columns)
-      // 拖完的这一次 click 不应该再打开应用
+      if (pos && pos.id === d.id) move(d.id, pos.x, pos.y, d.maxX)
+      // 拖完这一次 click 不再触发卡片动作
       suppressClick.current = true
       window.setTimeout(() => {
         suppressClick.current = false
@@ -278,13 +352,15 @@ export function Desktop() {
   /* ---------- 尺寸手柄：拖过一格升一档，点一下循环一档 ---------- */
   const onResizeDown = (e: ReactPointerEvent<HTMLButtonElement>, it: LayoutItem) => {
     e.stopPropagation()
+    const m = refreshMetrics()
     resizeRef.current = {
       id: it.id,
       startX: e.clientX,
       startY: e.clientY,
       index: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
       applied: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
-      columns: currentColumns(),
+      columns: m.columns,
+      metrics: m,
       moved: false,
     }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -299,13 +375,14 @@ export function Desktop() {
     const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
     if (Math.abs(delta) < 8) return
     r.moved = true
-    const cell = metrics.unit + metrics.gap
-    const step = delta >= 0 ? Math.floor(delta / cell) : Math.ceil(delta / cell)
+    const pitch = r.metrics.unit + r.metrics.gap
+    const step = delta >= 0 ? Math.floor(delta / pitch) : Math.ceil(delta / pitch)
     const sizes = WIDGET_DEFS[r.id].sizes
     const target = Math.max(0, Math.min(sizes.length - 1, r.index + step))
     if (target === r.applied) return
     r.applied = target
-    setSize(r.id, sizes[target], r.columns)
+    const g = gridOf(sizes[target], r.columns)
+    setSize(r.id, sizes[target], r.columns, maxXFor(g.w, r.metrics))
   }
 
   const onResizeUp = () => {
@@ -336,9 +413,6 @@ export function Desktop() {
     setGalleryOpen(true)
   }
 
-  const clampX = (x: number, w: number) =>
-    Math.max(0, Math.min(x, Math.max(0, metrics.columns - w)))
-
   return (
     <>
       <div className="desktop" onContextMenu={onContextMenu}>
@@ -355,14 +429,14 @@ export function Desktop() {
             const def = WIDGET_DEFS[it.id]
             const g = gridOf(it.size, metrics.columns)
             const pos = pointerPos?.id === it.id ? pointerPos : null
-            const x = clampX(pos?.x ?? it.x, g.w)
+            const x = clamp(pos?.x ?? it.x, 0, maxXFor(g.w, metrics))
             const y = Math.max(0, pos?.y ?? it.y)
             const style = {
               ['--w' as string]: g.w,
               ['--h' as string]: g.h,
               ['--i' as string]: i,
-              ['--col' as string]: x + 1,
-              ['--row' as string]: y + 1,
+              ['--x' as string]: x,
+              ['--y' as string]: y,
             } as CSSProperties
 
             return (
@@ -407,7 +481,11 @@ export function Desktop() {
                       onPointerCancel={onResizeUp}
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (!suppressClick.current) cycleSize(it.id, currentColumns())
+                        if (suppressClick.current) return
+                        const m = refreshMetrics()
+                        const sizes = WIDGET_DEFS[it.id].sizes
+                        const next = sizes[(sizes.indexOf(it.size) + 1) % sizes.length]
+                        cycleSize(it.id, m.columns, maxXFor(gridOf(next, m.columns).w, m))
                       }}
                       title="拖动或点击切换尺寸"
                       aria-label={`切换${def.name}尺寸，当前${it.size}`}
@@ -428,6 +506,8 @@ export function Desktop() {
                 {
                   ['--dh-x' as string]: dropHint.x,
                   ['--dh-y' as string]: dropHint.y,
+                  ['--dh-w' as string]: dropHint.w,
+                  ['--dh-h' as string]: dropHint.h,
                 } as CSSProperties
               }
               aria-hidden="true"
@@ -459,6 +539,7 @@ export function Desktop() {
         <WidgetGallery
           rest={rest}
           onAdd={(id, size) => add(id, size)}
+          onDragSize={setDropSize}
           onClose={() => {
             setGalleryOpen(false)
             shell.setEditing(false)

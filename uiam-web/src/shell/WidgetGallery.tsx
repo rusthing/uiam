@@ -14,13 +14,15 @@ export const GALLERY_DND_MIME = 'application/x-uiam-widget'
 interface Props {
   rest: WidgetId[]
   onAdd: (id: WidgetId, size: WidgetSize) => void
+  /** 拖起/结束一张卡片时通知桌面，落点预览才能按真实尺寸画 */
+  onDragSize?: (size: WidgetSize | null) => void
   onClose: () => void
 }
 
 const CATS = ['全部', '概览', '发布', '快捷'] as const
 type Cat = (typeof CATS)[number]
 
-export function WidgetGallery({ rest, onAdd, onClose }: Props) {
+export function WidgetGallery({ rest, onAdd, onDragSize, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState<Cat>('全部')
   const [sizes, setSizes] = useState<Partial<Record<WidgetId, WidgetSize>>>({})
@@ -37,6 +39,7 @@ export function WidgetGallery({ rest, onAdd, onClose }: Props) {
       // Safari 在 dragstart 里 setData 偶尔抛；桌面 drop 会读 text/plain 兜底
     }
     setDragging(true)
+    onDragSize?.(size)
   }
 
   useEffect(() => {
@@ -47,14 +50,17 @@ export function WidgetGallery({ rest, onAdd, onClose }: Props) {
   // 有机会触发（源节点没了）。用 window 级 dragend/drop 兜底，否则面板会一直
   // 停在半透明 + pointer-events:none，连「完成」都点不了。
   useEffect(() => {
-    const clear = () => setDragging(false)
+    const clear = () => {
+      setDragging(false)
+      onDragSize?.(null)
+    }
     window.addEventListener('dragend', clear)
     window.addEventListener('drop', clear)
     return () => {
       window.removeEventListener('dragend', clear)
       window.removeEventListener('drop', clear)
     }
-  }, [])
+  }, [onDragSize])
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase()

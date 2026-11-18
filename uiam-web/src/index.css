@@ -719,16 +719,8 @@ code,
   left: 26px;
   right: 26px;
   bottom: 94px;
-  display: grid;
-  /* 正方形定宽单元：small 才是正方形，medium/large/XL 由它派生。
-     不再用 1fr 拉伸——拉伸出来的 1×1 是 2.5:1 的扁条，怎么上玻璃都不像 macOS */
-  grid-template-columns: repeat(auto-fill, var(--wg-unit));
-  grid-auto-rows: var(--wg-unit);
-  /* 组件坐标全部显式给出，grid 只负责画格子；不再自动流式铺满 */
-  grid-auto-flow: row;
-  gap: var(--wg-gap);
-  align-content: start;
-  justify-content: start;
+  /* 组件自己按 --x/--y 绝对定位，网格只作为吸附刻度，不再负责布局 */
+  display: block;
   z-index: 1;
   overflow: auto;
   padding-bottom: var(--wg-gap);
@@ -744,7 +736,13 @@ code,
    L3 `.widget > *`：内容层，颜色全部走语义变量，clear/tinted/mono 下自动改色。
    ============================================================ */
 .widget {
-  position: relative;
+  position: absolute;
+  /* --x/--y 单位是一个网格 pitch；整数 = 对齐网格，小数 = 自由落点。
+     宽高仍由尺寸族决定，留白用 gap 而不是把格子拉伸。 */
+  left: calc(var(--x, 0) * (var(--wg-unit) + var(--wg-gap)));
+  top: calc(var(--y, 0) * (var(--wg-unit) + var(--wg-gap)));
+  width: calc(var(--w, 1) * var(--wg-unit) + (var(--w, 1) - 1) * var(--wg-gap));
+  height: calc(var(--h, 1) * var(--wg-unit) + (var(--h, 1) - 1) * var(--wg-gap));
   isolation: isolate;
   container-type: inline-size;
   /* 语义别名必须在 .widget 自身重算。自定义属性的 var() 在「声明所在元素」求值：
@@ -755,8 +753,6 @@ code,
   --wg-t2: var(--wg-ink-2);
   display: flex;
   flex-direction: column;
-  grid-column: var(--col, 1) / span var(--w, 1);
-  grid-row: var(--row, 1) / span var(--h, 1);
   /* 卡片是展示与快捷入口，拖动时不该选中文字 */
   user-select: none;
   padding: var(--wg-pad);
@@ -1325,7 +1321,6 @@ html[data-wg-fallback='opaque'] .widget::after {
   transform: scale(0.96);
 }
 .wg-empty {
-  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4932,8 +4927,8 @@ button.wg-add:focus-visible {
   z-index: 5;
   left: calc(var(--dh-x, 0) * (var(--wg-unit) + var(--wg-gap)));
   top: calc(var(--dh-y, 0) * (var(--wg-unit) + var(--wg-gap)));
-  width: calc(2 * var(--wg-unit) + var(--wg-gap));
-  height: var(--wg-unit);
+  width: calc(var(--dh-w, 2) * var(--wg-unit) + (var(--dh-w, 2) - 1) * var(--wg-gap));
+  height: calc(var(--dh-h, 1) * var(--wg-unit) + (var(--dh-h, 1) - 1) * var(--wg-gap));
   border: 2px dashed rgba(10, 132, 255, 0.9);
   border-radius: var(--wg-radius);
   background: rgba(10, 132, 255, 0.13);

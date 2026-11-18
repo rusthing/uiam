@@ -1,10 +1,11 @@
 /**
  * 桌面组件布局：尺寸族、自由坐标、持久化与旧数据迁移。
  *
- * 桌面是 macOS 式的**自由摆放**：每个组件始终带 `x/y` 网格坐标，不再走
- * `grid-auto-flow` 自动铺满。拖动直接改坐标，位置存本地并（可选）同步到
- * uiam-svr。`packItems` 负责默认排布与新增组件的落位，`nearestFree` 负责
- * 拖动落点被占用时就近找空位——两者都保证组件不重叠。
+ * 桌面是 macOS 式的**自由摆放**：每个组件带 `x/y` 坐标（单位 = 网格 pitch），
+ * 整数表示对齐网格，小数表示自由落点。拖动只在编辑态开启，吸附/边缘吸附由
+ * `Desktop` 在指针层算好后把最终坐标传进来；这里只负责钳制到容器内、持久化，
+ * 不再拆散/重排别的组件（自由落点允许重叠）。`packItems` 仅用于默认布局和
+ * 「添加」按钮的自动落位，`nearestFree` 只服务于改尺寸时的避让。
  *
  * 旧数据（v1 纯数组 / v2 `{ free, items }`）自动迁移成 v3：顺序保留，已有的
  * `x/y` 保留，缺失的按顺序补坐标，用户摆好的桌面不会因为升级被清空。
@@ -47,15 +48,18 @@ export interface WidgetDef {
 export interface LayoutItem {
   id: WidgetId
   size: WidgetSize
-  /** 自由摆放的网格坐标（0 基） */
+  /**
+   * 自由坐标，单位是一个网格 pitch（`--wg-unit + --wg-gap`）。
+   * 整数 = 对齐某条网格线；小数 = 用户没触发吸附时的自由落点。
+   */
   x: number
   y: number
 }
 
-/** 小组件中心拖放落点：拖到哪就放在哪附近 */
+/** 小组件中心拖放落点：已经是最终坐标，不再自动找空位 */
 export interface AddAt {
-  x?: number
-  y?: number
+  x: number
+  y: number
 }
 
 interface LayoutState {
@@ -142,6 +146,11 @@ function clampX(x: number, w: number, columns: number) {
   return Math.max(0, Math.min(x, Math.max(0, columns - w)))
 }
 
+/** 用像素边界算出来的右边界钳制，允许小数坐标落到最后一列之外的容器留白 */
+function clampTo(x: number, max: number) {
+  return Math.max(0, Math.min(x, Math.max(0, max)))
+}
+
 /** 尺寸 → 当前列数下的实际格数；窄屏不会让 4 列组件溢出容器 */
 export function gridOf(size: WidgetSize, columns: number): { w: number; h: number } {
   const { w, h } = SIZE_FAMILY[size]
@@ -199,7 +208,14 @@ export function nearestFree(
 
 function rectOf(item: LayoutItem, columns: number): Rect & { id: WidgetId } {
   const { w, h } = gridOf(item.size, columns)
-  return { id: item.id, x: clampX(item.x, w, columns), y: Math.max(0, item.y), w, h }
+  // 不再夹到 columns-w：自由落点可以进最后一列右侧的留白
+  return {
+    id: item.id,
+    x: clampTo(item.x, STORED_COLUMNS),
+    y: Math.max(0, item.y),
+    w,
+    h,
+  }
 }
 
 /** 让某个组件落在不与别人重叠的位置：原位可用就不动，被占才就近挪 */
@@ -219,7 +235,12 @@ function occupiedOf(items: LayoutItem[], exceptId: WidgetId | null, columns: num
     .filter((it) => it.id !== exceptId)
     .map((it) => {
       const { w, h } = gridOf(it.size, columns)
-      return { x: clampX(it.x, w, columns), y: Math.max(0, it.y), w, h }
+      return {
+        x: clampTo(it.x, STORED_COLUMNS),
+        y: Math.max(0, it.y),
+        w,
+        h,
+      }
     })
 }
 
@@ -278,11 +299,11 @@ function sanitizeItems(raw: unknown, keepCoords: boolean): LayoutItem[] | null {
       ? (entry.size as WidgetSize)
       : def.size
     const hasCoords =
-      keepCoords && Number.isInteger(entry.x) && Number.isInteger(entry.y)
+      keepCoords && Number.isFinite(entry.x) && Number.isFinite(entry.y)
     picked.push({
       id,
       size,
-      x: hasCoords ? Math.max(0, entry.x as number) : -1,
+      x: hasCoords ? clampTo(entry.x as number, STORED_COLUMNS) : -1,
       y: hasCoords ? Math.max(0, entry.y as number) : -1,
     })
   }
@@ -295,9 +316,9 @@ function sanitizeItems(raw: unknown, keepCoords: boolean): LayoutItem[] | null {
     const hasSpot =
       item.x >= 0 &&
       item.y >= 0 &&
-      fits(occupied, { x: clampX(item.x, w, STORED_COLUMNS), y: item.y, w, h })
+      fits(occupied, { x: clampTo(item.x, STORED_COLUMNS), y: item.y, w, h })
     const spot = hasSpot
-      ? { x: clampX(item.x, w, STORED_COLUMNS), y: item.y }
+      ? { x: clampTo(item.x, STORED_COLUMNS), y: item.y }
       : firstFree(occupied, w, h, DEFAULT_COLUMNS)
     items.push({ ...item, ...spot })
     occupied.push({ ...spot, w, h })
@@ -347,25 +368,39 @@ export function useWidgetLayout() {
     })
   }, [])
 
-  /**
-   * 添加组件。`at` 来自小组件中心的拖放：落到指针所在格，被占用时就近挪空位；
-   * 没给落点就接在默认顺序后面。
-   */
+  /** 「添加」按钮：没有落点，按默认顺序找第一个空位 */
   const add = useCallback(
-    (id: WidgetId, size?: WidgetSize, at?: AddAt, columns = DEFAULT_COLUMNS) => {
+    (id: WidgetId, size?: WidgetSize) => {
       update((prev) => {
         if (prev.items.some((it) => it.id === id)) return prev
         const def = WIDGET_DEFS[id]
         const chosen = size && def.sizes.includes(size) ? size : def.size
-        const { w, h } = gridOf(chosen, columns)
-        const occupied = occupiedOf(prev.items, null, columns)
-        const spot =
-          Number.isInteger(at?.x) && Number.isInteger(at?.y)
-            ? nearestFree(occupied, w, h, at!.x!, at!.y!, columns)
-            : firstFree(occupied, w, h, columns)
+        const { w, h } = gridOf(chosen, DEFAULT_COLUMNS)
+        const occupied = occupiedOf(prev.items, null, DEFAULT_COLUMNS)
+        const spot = firstFree(occupied, w, h, DEFAULT_COLUMNS)
         return {
           version: 3,
           items: [...prev.items, { id, size: chosen, x: spot.x, y: spot.y }],
+        }
+      })
+    },
+    [update],
+  )
+
+  /**
+   * 小组件中心拖放：坐标由 Desktop 算好（含吸附），原样落位，允许压住别的组件。
+   * `maxX` 是按容器像素宽度算出的右边界，让组件能进最后一列右边的留白。
+   */
+  const addAt = useCallback(
+    (id: WidgetId, size: WidgetSize, at: AddAt, maxX: number) => {
+      update((prev) => {
+        if (prev.items.some((it) => it.id === id)) return prev
+        return {
+          version: 3,
+          items: [
+            ...prev.items,
+            { id, size, x: clampTo(at.x, maxX), y: Math.max(0, at.y) },
+          ],
         }
       })
     },
@@ -377,15 +412,21 @@ export function useWidgetLayout() {
   }, [update])
 
   /**
-   * 改尺寸时卡片钉在原位，放不下的部分把周围卡片推开——不再把
-   * 自己「就近挪走」，否则手柄会从鼠标下面跑掉。
+   * 改尺寸时卡片尽量钉在原位，放不下的部分把周围卡片推开——手柄不从鼠标下跑掉。
+   * 自由落点的小数坐标要保留，所以右边界用像素算出来的 `maxX`，不是列数。
    */
   const resizeAt = useCallback(
-    (items: LayoutItem[], id: WidgetId, size: WidgetSize, columns: number): LayoutItem[] => {
+    (
+      items: LayoutItem[],
+      id: WidgetId,
+      size: WidgetSize,
+      columns: number,
+      maxX = STORED_COLUMNS,
+    ): LayoutItem[] => {
       const target = items.find((it) => it.id === id)
       if (!target) return items
       const { w, h } = gridOf(size, columns)
-      const x = clampX(target.x, w, columns)
+      const x = clampTo(target.x, maxX)
       const y = Math.max(0, target.y)
       const rect = { x, y, w, h }
       let next = items.map((it) => (it.id === id ? { ...it, size, x, y } : it))
@@ -409,10 +450,10 @@ export function useWidgetLayout() {
   )
 
   const setSize = useCallback(
-    (id: WidgetId, size: WidgetSize, columns = DEFAULT_COLUMNS) => {
+    (id: WidgetId, size: WidgetSize, columns = DEFAULT_COLUMNS, maxX = STORED_COLUMNS) => {
       update((prev) => {
         if (!WIDGET_DEFS[id].sizes.includes(size)) return prev
-        return { version: 3, items: resizeAt(prev.items, id, size, columns) }
+        return { version: 3, items: resizeAt(prev.items, id, size, columns, maxX) }
       })
     },
     [update, resizeAt],
@@ -420,52 +461,30 @@ export function useWidgetLayout() {
 
   /** 尺寸手柄：在该组件允许的尺寸里循环 */
   const cycleSize = useCallback(
-    (id: WidgetId, columns = DEFAULT_COLUMNS) => {
+    (id: WidgetId, columns = DEFAULT_COLUMNS, maxX = STORED_COLUMNS) => {
       update((prev) => {
         const item = prev.items.find((it) => it.id === id)
         if (!item) return prev
         const sizes = WIDGET_DEFS[id].sizes
         const next = sizes[(sizes.indexOf(item.size) + 1) % sizes.length]
-        return { version: 3, items: resizeAt(prev.items, id, next, columns) }
+        return { version: 3, items: resizeAt(prev.items, id, next, columns, maxX) }
       })
     },
     [update, resizeAt],
   )
 
   /**
-   * 自由摆放：拖到哪就停在哪。
-   * 落点压住的卡片会被**推开**到就近空位（通常是拖动者刚空出来的格子），
-   * 拖动者本身始终钉在落点——不再「就近找空位」把自己弹到别处。
+   * 自由摆放：吸附与边缘吸附都在 Desktop 指针层算完，这里只做边界钳制并落盘。
+   * 不推动、不重排其他组件——用户选的就是「松手在哪就在哪，允许重叠」。
    */
   const move = useCallback(
-    (id: WidgetId, x: number, y: number, columns = DEFAULT_COLUMNS) => {
-      update((prev) => {
-        const item = prev.items.find((it) => it.id === id)
-        if (!item) return prev
-        const mine = rectOf(item, columns)
-        const target = { x: clampX(x, mine.w, columns), y: Math.max(0, y) }
-        const dragged = { ...target, w: mine.w, h: mine.h }
-        const hits = prev.items
-          .filter((it) => it.id !== id)
-          .map((it) => rectOf(it, columns))
-          .filter((other) => collides(other, dragged))
-          .sort(
-            (a, b) =>
-              Math.abs(a.x - target.x) +
-              Math.abs(a.y - target.y) -
-              (Math.abs(b.x - target.x) + Math.abs(b.y - target.y)),
-          )
-
-        // 先让卡片钉在落点，再按由近到远把压住的卡片逐个推到空位
-        let next = prev.items.map((it) => (it.id === id ? { ...it, x: target.x, y: target.y } : it))
-        for (const hit of hits) {
-          const current = next.find((it) => it.id === hit.id)
-          if (!current) continue
-          if (!collides(rectOf(current, columns), dragged)) continue
-          next = settleItem(next, hit.id, columns)
-        }
-        return { version: 3, items: next }
-      })
+    (id: WidgetId, x: number, y: number, maxX: number) => {
+      update((prev) => ({
+        version: 3,
+        items: prev.items.map((it) =>
+          it.id === id ? { ...it, x: clampTo(x, maxX), y: Math.max(0, y) } : it,
+        ),
+      }))
     },
     [update],
   )
@@ -493,6 +512,6 @@ export function useWidgetLayout() {
 
   return {
     layout: state.items,
-    add, remove, setSize, cycleSize, move, reset, rest,
+    add, addAt, remove, setSize, cycleSize, move, reset, rest,
   }
 }
