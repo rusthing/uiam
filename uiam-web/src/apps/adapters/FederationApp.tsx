@@ -10,7 +10,10 @@ import {
   Suspense,
   lazy,
   useCallback,
+  useMemo,
+  useState,
   useSyncExternalStore,
+  type ComponentType,
   type ErrorInfo,
   type ReactNode,
 } from 'react'
@@ -20,26 +23,29 @@ import type { AppMeta } from '../meta'
 
 // 静态 specifier 让联邦插件在构建期把它们登记成远程模块；真正的代码运行时才取。
 // 必须是字面量（不能 import(`./${name}`)），否则构建期扫描不到、运行时也解析不了。
-const REMOTE_APPS: Record<string, ReturnType<typeof lazy>> = {
-  syn: lazy(() => import('syn-web/syn-app')),
-  msg: lazy(() => import('msg-web/msg-app')),
-  alarm: lazy(() => import('alarm-web/alarm-app')),
-  dbz: lazy(() => import('dbz-web/dbz-app')),
+//
+// 这里存的是「加载器」而不是 lazy 组件本身：React.lazy 会把首次 import 的结果
+// （含失败）缓存进内部 payload，同一个 lazy 对象重试不会重新 import。真正的重试
+// 必须由 FederationApp 在 retry 变化时重新 lazy(loader) 生成一个新对象。
+const REMOTE_LOADERS: Record<string, () => Promise<{ default: ComponentType<any> }>> = {
+  syn: () => import('syn-web/syn-app'),
+  msg: () => import('msg-web/msg-app'),
+  alarm: () => import('alarm-web/alarm-app'),
+  dbz: () => import('dbz-web/dbz-app'),
 }
 
 interface BoundaryState {
   error: Error | null
-  retry: number
 }
 
 class FederationBoundary extends Component<
-  { app: AppMeta; children: ReactNode },
+  { app: AppMeta; onRetry: () => void; children: ReactNode },
   BoundaryState
 > {
-  state: BoundaryState = { error: null, retry: 0 }
+  state: BoundaryState = { error: null }
 
   static getDerivedStateFromError(error: Error): BoundaryState {
-    return { error, retry: 0 }
+    return { error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -47,7 +53,7 @@ class FederationBoundary extends Component<
   }
 
   render() {
-    const { app, children } = this.props
+    const { app, children, onRetry } = this.props
     if (this.state.error) {
       return (
         <div className="pane">
@@ -59,9 +65,10 @@ class FederationBoundary extends Component<
             <button
               className="btn btn-primary"
               type="button"
-              onClick={() =>
-                this.setState((prev) => ({ error: null, retry: prev.retry + 1 }))
-              }
+              onClick={() => {
+                this.setState({ error: null })
+                onRetry()
+              }}
             >
               重试加载
             </button>
@@ -74,7 +81,7 @@ class FederationBoundary extends Component<
         </div>
       )
     }
-    return <div key={this.state.retry}>{children}</div>
+    return children
   }
 }
 
@@ -86,7 +93,15 @@ export function FederationApp({ app }: { app: AppMeta }) {
     [app.id, app.name, setWinTitle],
   )
 
-  const RemoteApp = REMOTE_APPS[app.id]
+  // retry 变化时重新 lazy()，生成 payload 干净的新组件：这样重试才会真正重新
+  // import() 远程入口，而不是复用缓存了失败结果的旧 lazy 对象。
+  const [retry, setRetry] = useState(0)
+  const handleRetry = useCallback(() => setRetry((n) => n + 1), [])
+  const RemoteApp = useMemo(() => {
+    const loader = REMOTE_LOADERS[app.id]
+    return loader ? lazy(loader) : null
+  }, [app.id, retry])
+
   if (!RemoteApp) {
     return (
       <div className="pane">
@@ -98,7 +113,7 @@ export function FederationApp({ app }: { app: AppMeta }) {
 
   return (
     <div className="federation-app">
-      <FederationBoundary app={app}>
+      <FederationBoundary app={app} onRetry={handleRetry}>
         <Suspense
           fallback={
             <div className="pane">
