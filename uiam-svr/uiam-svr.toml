@@ -1,10 +1,10 @@
 profile = "dev"
 
-#[db]
+[db]
 url = "postgres://uiam:uiam@pgsql:5432/uiam"
 
 [web]
-port = 9002
+port = 9009
 
 # 网关管理面一期只依赖数据库与 Consul KV：
 #   - 读库渲染 TOML，写库前做引用校验

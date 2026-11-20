@@ -5,7 +5,7 @@ profile = "dev"
 url = "postgres://uiam:uiam@localhost:5432/uiam"
 
 [web]
-port = 9002
+port = 9009
 
 [micro-svc.consul]
 base-url = "http://localhost:8500"

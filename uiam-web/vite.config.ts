@@ -18,11 +18,11 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/uiam-web/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
-    port: 5180,
+    port: 5183,
     strictPort: false,
     proxy: {
       '/uiam': {
-        target: 'http://127.0.0.1:9002',
+        target: 'http://127.0.0.1:9009',
         changeOrigin: true,
       },
     },
