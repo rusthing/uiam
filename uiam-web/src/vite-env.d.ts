@@ -36,6 +36,9 @@ interface ImportMetaEnv {
   readonly VITE_MSG_REMOTE_ENTRY?: string
   readonly VITE_ALARM_REMOTE_ENTRY?: string
   readonly VITE_DBZ_REMOTE_ENTRY?: string
+  readonly VITE_ADM_REMOTE_ENTRY?: string
+  readonly VITE_DTW_REMOTE_ENTRY?: string
+  readonly VITE_JOBX_REMOTE_ENTRY?: string
 }
 
 /** 联邦模块在构建期由 @module-federation/vite 解析，这里只给 TS 一份形状 */
@@ -64,6 +67,24 @@ declare module 'alarm-web/alarm-app' {
 }
 
 declare module 'dbz-web/dbz-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'adm-web/adm-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'dtw-web/dtw-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'jobx-web/jobx-app' {
   import type { ComponentType } from 'react'
   const App: ComponentType<FederatedAppProps>
   export default App

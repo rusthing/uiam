@@ -5,10 +5,10 @@
  * React 组件，在 `apps/index.tsx` 里按 id 分发——外壳（Dock / 启动台 / 窗口）
  * 只依赖这份元数据，不会因为某个业务页面改结构而跟着动。
  *
- * 这里登记的是**真实存在**的应用：内置应用直接渲染组件，外部控制台按 mode 走
- * internal / federation / iframe / external。msg / alarm / dbz / syn 已翻联邦，
- * 在桌面窗口里以 React 单例方式加载；iframe 模式保留给尚未升级的子应用。
- * sandbox / webcomponent 的适配器还没接入，不在这里伪装成可用应用。
+ * 这里登记的是**真实存在**的应用：内置应用直接渲染组件，七个外部控制台
+ * （msg / alarm / dbz / syn / adm / dtw / jobx）全部走 federation，在桌面窗口里
+ * 以 React 单例方式加载。iframe / external 适配器保留作为降级与兜底手段，但当前
+ * 没有应用使用；sandbox / webcomponent 尚未接入，不在这里伪装成可用应用。
  */
 import type { AppCaps, AppMode } from './runtime'
 
@@ -136,8 +136,9 @@ export const APPS: AppMeta[] = [
     c2: '#ad4e00',
     w: 1200,
     h: 740,
-    mode: 'external',
+    mode: 'federation',
     url: webUrl('VITE_ADM_WEB_URL', '/adm-rs-web/'),
+    route: '/',
   },
   {
     id: 'dtw',
@@ -147,8 +148,9 @@ export const APPS: AppMeta[] = [
     c2: '#237804',
     w: 1200,
     h: 740,
-    mode: 'external',
+    mode: 'federation',
     url: webUrl('VITE_DTW_WEB_URL', '/dtw-rs-web/'),
+    route: '/regions',
   },
   {
     id: 'jobx',
@@ -158,8 +160,9 @@ export const APPS: AppMeta[] = [
     c2: '#a8071a',
     w: 1200,
     h: 740,
-    mode: 'external',
+    mode: 'federation',
     url: webUrl('VITE_JOBX_WEB_URL', '/jobx-web/'),
+    route: '/',
   },
 ]
 

@@ -32,6 +32,9 @@ const REMOTE_LOADERS: Record<string, () => Promise<{ default: ComponentType<any>
   msg: () => import('msg-web/msg-app'),
   alarm: () => import('alarm-web/alarm-app'),
   dbz: () => import('dbz-web/dbz-app'),
+  adm: () => import('adm-web/adm-app'),
+  dtw: () => import('dtw-web/dtw-app'),
+  jobx: () => import('jobx-web/jobx-app'),
 }
 
 interface BoundaryState {
