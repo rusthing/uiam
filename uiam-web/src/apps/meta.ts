@@ -6,8 +6,9 @@
  * 只依赖这份元数据，不会因为某个业务页面改结构而跟着动。
  *
  * 这里登记的是**真实存在**的应用：内置应用直接渲染组件，外部控制台按 mode 走
- * internal / federation / iframe / external。sandbox / webcomponent 的适配器还没接入，
- * 不在这里伪装成可用应用，避免出现点开是空壳的假入口。
+ * internal / federation / iframe / external。msg / alarm / dbz / syn 已翻联邦，
+ * 在桌面窗口里以 React 单例方式加载；iframe 模式保留给尚未升级的子应用。
+ * sandbox / webcomponent 的适配器还没接入，不在这里伪装成可用应用。
  */
 import type { AppCaps, AppMode } from './runtime'
 
@@ -85,8 +86,10 @@ export const APPS: AppMeta[] = [
     c2: '#08979c',
     w: 1180,
     h: 720,
-    mode: 'iframe',
+    mode: 'federation',
+    // url 只作为联邦加载失败时的「独立打开」出口
     url: webUrl('VITE_MSG_WEB_URL', '/msg-web/'),
+    route: '/',
   },
   {
     id: 'alarm',
@@ -96,8 +99,9 @@ export const APPS: AppMeta[] = [
     c2: '#d4380d',
     w: 1180,
     h: 720,
-    mode: 'iframe',
+    mode: 'federation',
     url: webUrl('VITE_ALARM_WEB_URL', '/alarm-web/'),
+    route: '/',
   },
   {
     id: 'dbz',
@@ -107,14 +111,14 @@ export const APPS: AppMeta[] = [
     c2: '#0958d9',
     w: 1240,
     h: 760,
-    mode: 'iframe',
+    mode: 'federation',
     url: webUrl('VITE_DBZ_WEB_URL', '/dbz-web/'),
     route: '/control-panel',
   },
   {
     id: 'syn',
     name: '同步控制台',
-    desc: '同步任务、试跑与投递记录（联邦 POC）',
+    desc: '同步任务、试跑与投递记录',
     c1: '#9254de',
     c2: '#531dab',
     w: 1200,

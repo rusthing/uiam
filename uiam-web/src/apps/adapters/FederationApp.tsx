@@ -18,8 +18,14 @@ import { currentTheme, subscribeTheme, type Theme } from '../../lib/theme'
 import { useShell } from '../../shell/state'
 import type { AppMeta } from '../meta'
 
-// 静态 specifier 让联邦插件在构建期把它登记成远程模块；真正的代码运行时才取。
-const SynApp = lazy(() => import('syn-web/syn-app'))
+// 静态 specifier 让联邦插件在构建期把它们登记成远程模块；真正的代码运行时才取。
+// 必须是字面量（不能 import(`./${name}`)），否则构建期扫描不到、运行时也解析不了。
+const REMOTE_APPS: Record<string, ReturnType<typeof lazy>> = {
+  syn: lazy(() => import('syn-web/syn-app')),
+  msg: lazy(() => import('msg-web/msg-app')),
+  alarm: lazy(() => import('alarm-web/alarm-app')),
+  dbz: lazy(() => import('dbz-web/dbz-app')),
+}
 
 interface BoundaryState {
   error: Error | null
@@ -80,6 +86,16 @@ export function FederationApp({ app }: { app: AppMeta }) {
     [app.id, app.name, setWinTitle],
   )
 
+  const RemoteApp = REMOTE_APPS[app.id]
+  if (!RemoteApp) {
+    return (
+      <div className="pane">
+        <div className="pane-title">{app.name} 的联邦模块未登记</div>
+        <div className="pane-desc">该应用尚未在联邦注册表里配置远程组件。</div>
+      </div>
+    )
+  }
+
   return (
     <div className="federation-app">
       <FederationBoundary app={app}>
@@ -91,7 +107,7 @@ export function FederationApp({ app }: { app: AppMeta }) {
             </div>
           }
         >
-          <SynApp theme={theme} initialPath={app.route ?? '/'} onRoute={onRoute} />
+          <RemoteApp theme={theme} initialPath={app.route ?? '/'} onRoute={onRoute} />
         </Suspense>
       </FederationBoundary>
     </div>

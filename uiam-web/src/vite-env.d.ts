@@ -31,18 +31,40 @@ interface ImportMetaEnv {
   readonly VITE_ADM_WEB_URL?: string
   readonly VITE_DTW_WEB_URL?: string
   readonly VITE_JOBX_WEB_URL?: string
-  /** 联邦 POC：开发期 syn-web 的 remoteEntry.js 绝对地址 */
+  /** 联邦：开发期各子应用 remoteEntry.js 的绝对地址（生产走同源前缀） */
   readonly VITE_SYN_REMOTE_ENTRY?: string
+  readonly VITE_MSG_REMOTE_ENTRY?: string
+  readonly VITE_ALARM_REMOTE_ENTRY?: string
+  readonly VITE_DBZ_REMOTE_ENTRY?: string
 }
 
 /** 联邦模块在构建期由 @module-federation/vite 解析，这里只给 TS 一份形状 */
+interface FederatedAppProps {
+  theme?: 'light' | 'dark'
+  initialPath?: string
+  onRoute?: (path: string, title: string) => void
+}
+
 declare module 'syn-web/syn-app' {
   import type { ComponentType } from 'react'
-  export interface SynFederatedProps {
-    theme?: 'light' | 'dark'
-    initialPath?: string
-    onRoute?: (path: string, title: string) => void
-  }
-  const SynFederatedApp: ComponentType<SynFederatedProps>
-  export default SynFederatedApp
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'msg-web/msg-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'alarm-web/alarm-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
+}
+
+declare module 'dbz-web/dbz-app' {
+  import type { ComponentType } from 'react'
+  const App: ComponentType<FederatedAppProps>
+  export default App
 }

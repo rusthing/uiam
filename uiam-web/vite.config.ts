@@ -20,10 +20,11 @@ import { federation } from '@module-federation/vite'
 // 用 VITE_SYN_REMOTE_ENTRY 指向 syn-web（默认 http://localhost:5182）。
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, '.', '')
-  const synEntry =
+  // 生产走同源 /<app>-web/remoteEntry.js；开发跨 dev server 时用 VITE_XXX_REMOTE_ENTRY 覆盖。
+  const remoteEntry = (name: string, devDefault: string) =>
     command === 'build'
-      ? '/syn-web/remoteEntry.js'
-      : env.VITE_SYN_REMOTE_ENTRY?.trim() || 'http://localhost:5182/remoteEntry.js'
+      ? `/${name}-web/remoteEntry.js`
+      : env[`VITE_${name.toUpperCase()}_REMOTE_ENTRY`]?.trim() || devDefault
   const sharedReact = { singleton: true, allowNodeModulesSuffixMatch: true } as const
 
   return {
@@ -35,7 +36,25 @@ export default defineConfig(({ command, mode }) => {
           'syn-web': {
             type: 'module',
             name: 'syn-web',
-            entry: synEntry,
+            entry: remoteEntry('syn', 'http://localhost:5182/remoteEntry.js'),
+            shareScope: 'default',
+          },
+          'msg-web': {
+            type: 'module',
+            name: 'msg-web',
+            entry: remoteEntry('msg', 'http://localhost:5175/remoteEntry.js'),
+            shareScope: 'default',
+          },
+          'alarm-web': {
+            type: 'module',
+            name: 'alarm-web',
+            entry: remoteEntry('alarm', 'http://localhost:5176/remoteEntry.js'),
+            shareScope: 'default',
+          },
+          'dbz-web': {
+            type: 'module',
+            name: 'dbz-web',
+            entry: remoteEntry('dbz', 'http://localhost:5174/remoteEntry.js'),
             shareScope: 'default',
           },
         },
