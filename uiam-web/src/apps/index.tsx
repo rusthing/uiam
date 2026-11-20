@@ -11,6 +11,7 @@ import { AboutApp } from './AboutApp'
 import { ApiApp } from './ApiApp'
 import { GatewayApp } from './GatewayApp'
 import { SettingsApp } from './SettingsApp'
+import { FederationApp } from './adapters/FederationApp'
 import { IframeApp } from './adapters/IframeApp'
 import { ExternalApp, PendingApp } from './adapters/SimpleApps'
 import { APP_MAP } from './meta'
@@ -42,6 +43,8 @@ function bodyFor(app: AppMeta) {
       return <InternalBody id={app.id} />
     case 'iframe':
       return <IframeApp app={app} />
+    case 'federation':
+      return <FederationApp app={app} />
     case 'external':
       return <ExternalApp app={app} />
     default:

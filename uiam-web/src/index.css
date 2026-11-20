@@ -642,6 +642,17 @@ code,
   background: var(--body-bg);
 }
 
+/* 联邦模块：没有文档边界，根节点自己撑满窗口内容区 */
+.federation-app {
+  min-height: 100%;
+}
+.federation-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 /* ---- 改大小的把手：贴在窗口内侧 6px，四角 12px ---- */
 .rz {
   position: absolute;

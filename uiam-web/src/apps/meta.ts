@@ -5,9 +5,9 @@
  * React 组件，在 `apps/index.tsx` 里按 id 分发——外壳（Dock / 启动台 / 窗口）
  * 只依赖这份元数据，不会因为某个业务页面改结构而跟着动。
  *
- * 这里登记的是**真实存在**的应用：内置应用直接渲染组件，外部控制台按 mode 走 iframe
- * 或新标签页。federation / sandbox / webcomponent 的适配器还没接入前，不在这里伪装成
- * 可用应用，避免出现点开是空壳的假入口。
+ * 这里登记的是**真实存在**的应用：内置应用直接渲染组件，外部控制台按 mode 走
+ * internal / federation / iframe / external。sandbox / webcomponent 的适配器还没接入，
+ * 不在这里伪装成可用应用，避免出现点开是空壳的假入口。
  */
 import type { AppCaps, AppMode } from './runtime'
 
@@ -114,13 +114,15 @@ export const APPS: AppMeta[] = [
   {
     id: 'syn',
     name: '同步控制台',
-    desc: '同步任务、试跑与投递记录',
+    desc: '同步任务、试跑与投递记录（联邦 POC）',
     c1: '#9254de',
     c2: '#531dab',
     w: 1200,
     h: 740,
-    mode: 'external',
+    mode: 'federation',
+    // url 只作为联邦加载失败时的「独立打开」出口
     url: webUrl('VITE_SYN_WEB_URL', '/syn-web/'),
+    route: '/',
   },
   {
     id: 'adm',
@@ -167,6 +169,7 @@ export const DEFAULT_PINNED = [
   'msg',
   'alarm',
   'dbz',
+  'syn',
   'api',
   'settings',
   'about',

@@ -31,4 +31,18 @@ interface ImportMetaEnv {
   readonly VITE_ADM_WEB_URL?: string
   readonly VITE_DTW_WEB_URL?: string
   readonly VITE_JOBX_WEB_URL?: string
+  /** 联邦 POC：开发期 syn-web 的 remoteEntry.js 绝对地址 */
+  readonly VITE_SYN_REMOTE_ENTRY?: string
+}
+
+/** 联邦模块在构建期由 @module-federation/vite 解析，这里只给 TS 一份形状 */
+declare module 'syn-web/syn-app' {
+  import type { ComponentType } from 'react'
+  export interface SynFederatedProps {
+    theme?: 'light' | 'dark'
+    initialPath?: string
+    onRoute?: (path: string, title: string) => void
+  }
+  const SynFederatedApp: ComponentType<SynFederatedProps>
+  export default SynFederatedApp
 }
