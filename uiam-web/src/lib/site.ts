@@ -37,7 +37,7 @@ export const SITE_ICONS: Record<string, { label: string; path: string }> = {
 }
 
 const DEFAULT: SiteConfig = {
-  name: import.meta.env.VITE_SITE_NAME?.trim() || 'uiam 网关管理面',
+  name: import.meta.env.VITE_SITE_NAME?.trim() || '统一身份认证平台',
   icon: import.meta.env.VITE_SITE_ICON?.trim() || 'gateway',
 }
 

@@ -233,7 +233,11 @@ tinted 在 `.widget` 上覆盖 `--wg-ink` 时，继承下来的别名不会跟�
 
 - **站点图标 / 标题**：构建期 `VITE_SITE_NAME`、`VITE_SITE_ICON`（预设
   `gateway` / `grid` / `pulse` / `layers` 或图片 URL），运行时在「系统设置 → 站点」里改；
-  两个来源都同步 `document.title` 与 favicon。见 `src/lib/site.ts`。
+  两个来源都同步 `document.title` 与 favicon。标题默认「统一身份认证平台」，见 `src/lib/site.ts`。
+- **统一登录**：生产构建（`VITE_AUTH_MODE=required`）未登录只显示仿 macOS 锁屏，
+  账号密码由 adm-svr 校验（浏览器内先做 SM3），与其余六端共用 `adm.auth.session`；
+  登录成功的账户记在 `uiam.login.accounts`，下次锁屏以头像列表直接选， hover 可移除。
+  只记账号与展示名，不存密码或令牌。开发构建 `VITE_AUTH_MODE=disabled` 直接进桌面。
 - **偏好存储**：`src/lib/preferences.ts` 是可插拔读写口，默认 `localStorage`
   （`uiam-desktop` / `uiam-widget-appearance` / `uiam-site` / `uiam-gallery`）。
   ⚠️ `uiam-svr` 目前**没有偏好设置接口**，所以配了 `VITE_PREFERENCES_URL` 才会启用
@@ -244,7 +248,8 @@ tinted 在 `.widget` 上覆盖 `--wg-ink` 时，继承下来的别名不会跟�
 
 ## 一期已知取舍
 
-- **没有登录**：操作者 ID 在「系统设置」里手填，只用于 `X-User-Id` 与审计
+- **登录只做口令这一种**：锁屏支持记住过的账户选择，暂不做扫码 / SSO 三方登录；
+  权限菜单仍由 adm 那端负责
 - **只有网关这一条链路是真接后端的**：用户/角色/应用/会话/审计还没实现，
   所以桌面上不出现这些应用，不做点开是空壳的假图标
 - **列表接口带 `content`**：发布历史每行都拖着整份 TOML，一期接受

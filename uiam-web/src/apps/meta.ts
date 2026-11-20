@@ -130,7 +130,7 @@ export const APPS: AppMeta[] = [
   },
   {
     id: 'adm',
-    name: '权限管理',
+    name: '后台管理',
     desc: '账号、角色、菜单与登录审计',
     c1: '#ffc53d',
     c2: '#ad4e00',
@@ -142,7 +142,7 @@ export const APPS: AppMeta[] = [
   },
   {
     id: 'dtw',
-    name: '定位联调',
+    name: '人员定位',
     desc: '定位数据接入与报警联调',
     c1: '#95de64',
     c2: '#237804',

@@ -14,7 +14,7 @@ interface ImportMetaEnv {
    * - 生产：`/uiam-svr` —— 网关按服务名分流，剥掉第一段后转发给 uiam-svr
    */
   readonly VITE_API_BASE?: string
-  /** 顶部站点标题；留空用 `uiam 网关管理面` */
+  /** 顶部站点标题；留空用 `统一身份认证平台` */
   readonly VITE_SITE_NAME?: string
   /** 顶部站点图标：内置预设 id（gateway/grid/pulse/layers）或图片 URL */
   readonly VITE_SITE_ICON?: string

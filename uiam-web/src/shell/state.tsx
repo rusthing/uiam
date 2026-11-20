@@ -35,7 +35,9 @@ interface ShellApi {
   /** 子应用回报的动态标题；没有回报时窗口沿用 APP_MAP 里的名字 */
   titles: Record<string, string>
   setWinTitle: (id: string, title: string) => void
-  openApp: (id: string) => void
+  /** 每个应用本次打开时希望落在的初始路由；不填用 meta 里的 route */
+  routes: Record<string, string>
+  openApp: (id: string, route?: string) => void
   closeWin: (id: string) => void
   minimizeWin: (id: string) => void
   toggleMax: (id: string) => void
@@ -141,6 +143,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [wins, setWins] = useState<WinState[]>([])
   const [focusId, setFocusId] = useState<string | null>(null)
   const [titles, setTitles] = useState<Record<string, string>>({})
+  const [routes, setRoutes] = useState<Record<string, string>>({})
   const [pinned, setPinned] = useState<string[]>(loadPinned)
   const [editing, setEditing] = useState(false)
   const [launchpad, setLaunchpad] = useState(false)
@@ -181,7 +184,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     setTitles((prev) => (prev[id] === title ? prev : { ...prev, [id]: title }))
   }, [])
 
-  const openApp = useCallback((id: string) => {
+  const openApp = useCallback((id: string, route?: string) => {
     const app = APP_MAP[id]
     if (!app) return
     // 新页面模式不占桌面窗口：直接给浏览器，Dock 上也不留运行点
@@ -189,6 +192,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       window.open(app.url, '_blank', 'noopener,noreferrer')
       setLaunchpad(false)
       return
+    }
+    // 指定初始路由时（如账户菜单「个人中心」→ adm /profile）记下来，供联邦入口
+    // 挂载时用；已经开着的窗口不重置，避免打断用户当前所在页面。
+    if (route) {
+      setRoutes((prev) => ({ ...prev, [id]: route }))
     }
     zRef.current += 1
     const z = zRef.current
@@ -293,6 +301,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       focusId,
       titles,
       setWinTitle,
+      routes,
       openApp,
       closeWin,
       minimizeWin,
@@ -312,6 +321,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       focusId,
       titles,
       setWinTitle,
+      routes,
       openApp,
       closeWin,
       minimizeWin,

@@ -642,9 +642,17 @@ code,
   background: var(--body-bg);
 }
 
-/* 联邦模块：没有文档边界，根节点自己撑满窗口内容区 */
+/* 联邦模块：没有文档边界，根节点自己撑满窗口内容区。
+ *
+ * transform 非 none 会为内部所有 position:fixed 后代建立「包含块」——这是必需的：
+ * adm/dtw 的侧栏用 `fixed inset-y-0 left-0`，若不隔离就会相对整个桌面视口定位，
+ * 菜单跑到窗口外面（表现为「跑到 uiam 左侧」）；弹层遮罩同理会盖住整个桌面。
+ * height:100% 让包含块与窗口内容区等高，侧栏 inset-y-0 正好撑满窗口而不是跟着
+ * 内容一起滚动。overflow 不设，仍由 .win-body 负责滚动，保持其他联邦应用原样。 */
 .federation-app {
-  min-height: 100%;
+  position: relative;
+  height: 100%;
+  transform: translateZ(0);
 }
 .federation-actions {
   display: flex;
@@ -4959,3 +4967,407 @@ button.wg-add:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .wg-drop-hint { animation: none; }
 }
+
+/* ============================================================
+   登录锁屏（仿 macOS）
+   ------------------------------------------------------------
+   未登录时桌面的所有 Provider / 联邦窗口都不挂载，只剩这一层。
+   壁纸用桌面同一组 --wall-gradient，卡片是压在壁纸上的毛玻璃；
+   配色跟随 data-theme，深色下调整文字与玻璃底色。
+   ============================================================ */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-family: var(--font);
+}
+.login-wall {
+  position: absolute;
+  inset: -6%;
+  background: var(--wall-gradient);
+  background-size: cover;
+  filter: blur(2px) saturate(1.08);
+  transform: scale(1.04);
+}
+/* 压暗 + 中心提亮，让卡片从壁纸里浮出来 */
+.login-wall::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(52% 46% at 50% 44%, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.24) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.2));
+}
+.login-top {
+  position: relative;
+  margin-bottom: 26px;
+  text-align: center;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.32);
+}
+.login-top-time {
+  font-family: var(--font-display);
+  font-size: 74px;
+  font-weight: 300;
+  letter-spacing: -2px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.login-top-day {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 500;
+  opacity: 0.92;
+}
+.login-card {
+  position: relative;
+  width: min(500px, calc(100vw - 36px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 28px 22px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(28, 28, 34, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 24px 70px -20px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(26px) saturate(1.4);
+  -webkit-backdrop-filter: blur(26px) saturate(1.4);
+  animation: login-in 0.5s var(--ease) both;
+}
+[data-theme='light'] .login-card {
+  background: rgba(248, 248, 252, 0.32);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+@keyframes login-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.login-avatar {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.1));
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.login-avatar svg { width: 34px; height: 34px; }
+.login-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.login-greeting {
+  margin-top: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+.login-site {
+  margin-top: 2px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  opacity: 0.78;
+}
+/* 已登录过的账户：仿 macOS 锁屏的一排头像，点一下即回填账号 */
+.login-users {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 10px;
+  margin: 2px 0 18px;
+}
+.login-user-slot { position: relative; }
+.login-user {
+  width: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.login-user:hover { background: rgba(255, 255, 255, 0.12); }
+.login-user.on { background: rgba(255, 255, 255, 0.16); }
+[data-theme='light'] .login-user:hover { background: rgba(0, 0, 0, 0.05); }
+[data-theme='light'] .login-user.on { background: rgba(255, 255, 255, 0.5); }
+.login-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 3px 12px -3px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+}
+.login-user.on .login-user-avatar {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.85), 0 5px 16px -4px rgba(0, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+[data-theme='light'] .login-user.on .login-user-avatar {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.3), 0 4px 12px -4px rgba(0, 0, 0, 0.25);
+}
+.login-user-name {
+  max-width: 58px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  opacity: 0.85;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+.login-user-more .login-user-avatar {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px dashed rgba(255, 255, 255, 0.45);
+}
+[data-theme='light'] .login-user-more .login-user-avatar {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+.login-user-remove {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.login-user-slot:hover .login-user-remove { opacity: 0.9; }
+.login-user-remove:hover { background: #ff453a; }
+.login-pwd-label { display: flex; align-items: center; justify-content: space-between; }
+.login-switch {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #0a84ff;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.login-switch:hover { text-decoration: underline; }
+.login-field {
+  width: 100%;
+  display: block;
+  margin-bottom: 12px;
+}
+.login-field-label {
+  display: block;
+  margin: 0 0 5px 2px;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.82;
+}
+.login-pwd-wrap { position: relative; display: block; }
+.login-input {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.login-pwd-wrap .login-input { padding-right: 40px; }
+.login-input::placeholder { color: rgba(255, 255, 255, 0.55); }
+.login-input:focus {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+[data-theme='light'] .login-input { background: rgba(255, 255, 255, 0.42); border-color: rgba(0, 0, 0, 0.1); color: #1a1a20; }
+[data-theme='light'] .login-input::placeholder { color: rgba(0, 0, 0, 0.42); }
+[data-theme='light'] .login-input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.62); }
+.login-eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+.login-eye:hover { background: rgba(255, 255, 255, 0.14); }
+[data-theme='light'] .login-eye { color: rgba(0, 0, 0, 0.5); }
+.login-error {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 99, 92, 0.18);
+  border: 1px solid rgba(255, 99, 92, 0.35);
+  color: #ffd9d6;
+  font-size: 12px;
+}
+[data-theme='light'] .login-error { color: #a5140d; background: rgba(255, 59, 48, 0.12); }
+.login-submit {
+  width: 100%;
+  height: 40px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 11px;
+  background: linear-gradient(180deg, #0a84ff, #0060df);
+  color: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px -6px rgba(10, 132, 255, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: filter 0.15s, transform 0.1s;
+}
+.login-submit:hover { filter: brightness(1.08); }
+.login-submit:active { transform: scale(0.985); }
+.login-submit:disabled { opacity: 0.7; cursor: default; }
+.login-spinner {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: login-spin 0.7s linear infinite;
+}
+@keyframes login-spin { to { transform: rotate(360deg); } }
+.login-hint {
+  margin-top: 14px;
+  font-size: 10.5px;
+  opacity: 0.6;
+  text-align: center;
+}
+.login-foot {
+  position: absolute;
+  bottom: 22px;
+  font-size: 11px;
+  opacity: 0.72;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-card { animation: none; }
+  .login-spinner { animation-duration: 1.2s; }
+}
+
+/* 顶栏账户菜单 */
+.mb-account { position: relative; }
+.mb-user { gap: 5px; padding-right: 5px; }
+.mb-avatar {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.62));
+  color: #1a1a20;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.mb-avatar.lg {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+  background: linear-gradient(145deg, #0a84ff, #0060df);
+  color: #fff;
+}
+.mb-user-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mb-account-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  width: 212px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(30, 30, 36, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 16px 40px -12px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  color: #f2f2f5;
+  animation: login-in 0.16s var(--ease) both;
+}
+[data-theme='light'] .mb-account-pop {
+  background: rgba(250, 250, 253, 0.9);
+  border-color: rgba(0, 0, 0, 0.09);
+  color: #1d1d22;
+}
+.mb-account-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 7px 8px;
+}
+.mb-account-id { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.mb-account-id strong { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-account-id small { font-size: 10.5px; opacity: 0.6; }
+.mb-account-sep { height: 1px; margin: 3px 4px; background: rgba(128, 128, 140, 0.25); }
+.mb-account-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s var(--ease-soft);
+}
+.mb-account-item:hover { background: rgba(128, 128, 140, 0.18); }
+.mb-account-item.danger { color: #ff7a6e; }
+.mb-account-item.danger:hover { background: rgba(255, 99, 92, 0.16); }
+.mb-account-item:disabled { opacity: 0.6; cursor: default; }

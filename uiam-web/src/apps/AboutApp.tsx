@@ -26,7 +26,7 @@ export function AboutApp() {
           </div>
           <div>
             <div className="pane-title">uiam</div>
-            <div className="pane-desc">统一身份与网关管理面 · 版本 0.1.0</div>
+            <div className="pane-desc">统一身份认证平台 · 版本 0.1.0</div>
           </div>
         </div>
       </div>

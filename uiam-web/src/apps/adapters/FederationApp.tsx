@@ -90,7 +90,9 @@ class FederationBoundary extends Component<
 
 export function FederationApp({ app }: { app: AppMeta }) {
   const theme = useSyncExternalStore<Theme>(subscribeTheme, currentTheme, () => 'light')
-  const { setWinTitle } = useShell()
+  const { setWinTitle, routes } = useShell()
+  // openApp(id, route) 的覆盖（账户菜单「个人中心」跳 adm /profile）；没有则用 meta 默认。
+  const initialPath = routes[app.id] ?? app.route ?? '/'
   const onRoute = useCallback(
     (_path: string, title: string) => setWinTitle(app.id, title || app.name),
     [app.id, app.name, setWinTitle],
@@ -125,7 +127,7 @@ export function FederationApp({ app }: { app: AppMeta }) {
             </div>
           }
         >
-          <RemoteApp theme={theme} initialPath={app.route ?? '/'} onRoute={onRoute} />
+          <RemoteApp theme={theme} initialPath={initialPath} onRoute={onRoute} />
         </Suspense>
       </FederationBoundary>
     </div>

@@ -2,12 +2,13 @@
  * 顶栏：左边是**站点自己的**图标与标题，右边是真正有行为的入口。
  *
  * 这里曾经是苹果 logo +「访达」+ 文件/编辑/显示/前往/窗口/帮助 的仿 macOS 菜单，
- * 其中五项点了没有任何反应；右侧还挂着 wifi / 电池 / 搜索三个装饰图标。既然这是
- * 一个网关管理面，不是 Mac 桌面模拟器，就把「点了不做事」的东西全部拿掉：
+ * 其中五项点了没有任何反应；右侧还挂着 wifi / 电池 / 搜索三个装饰图标。这是统一
+ * 身份认证平台的桌面，不是 Mac 桌面模拟器，就把「点了不做事」的东西全部拿掉：
  * 品牌区改成可配置的站点身份，右侧只留编辑桌面、外观切换和时钟。
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { currentTheme, subscribeTheme, toggleTheme } from '../lib/theme'
+import { useAuth } from '../lib/auth-context'
 import { siteIconPath, useSiteConfig } from '../lib/site'
 import { useShell } from './state'
 
@@ -64,6 +65,115 @@ function useClock() {
   return now
 }
 
+/** 顶栏右上角的账户菜单：唯一承载用户信息与个人操作的地方 */
+function AccountMenu() {
+  const { session, logout } = useAuth()
+  const shell = useShell()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const displayName = session?.nickName || session?.name || '账号'
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const openProfile = () => {
+    setOpen(false)
+    // 个人中心 / 改口令在后台管理（adm）里，定位到它的 /profile；窗口已开则直接抬前
+    shell.openApp('adm', '/profile')
+  }
+
+  const doLogout = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await logout()
+      setOpen(false)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mb-account" ref={rootRef}>
+      <button
+        className={`mb-status mb-user${open ? ' on' : ''}`}
+        onClick={() => setOpen((v) => !v)}
+        title={`当前登录：${displayName}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span className="mb-avatar">{(displayName || 'U').slice(0, 1).toUpperCase()}</span>
+        <span className="mb-user-name">{displayName}</span>
+        <IconCaret />
+      </button>
+
+      {open && (
+        <div className="mb-account-pop" role="menu">
+          <div className="mb-account-head">
+            <span className="mb-avatar lg">{(displayName || 'U').slice(0, 1).toUpperCase()}</span>
+            <span className="mb-account-id">
+              <strong>{displayName}</strong>
+              <small>用户 ID {session?.userId ?? '—'}</small>
+            </span>
+          </div>
+          <div className="mb-account-sep" />
+          <button className="mb-account-item" role="menuitem" onClick={openProfile}>
+            <IconUser /> 个人中心 / 修改口令
+          </button>
+          <div className="mb-account-sep" />
+          <button
+            className="mb-account-item danger"
+            role="menuitem"
+            onClick={() => void doLogout()}
+            disabled={busy}
+            aria-busy={busy}
+          >
+            <IconPower /> {busy ? '正在退出…' : '退出登录'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function IconCaret() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+function IconUser() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </svg>
+  )
+}
+function IconPower() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 3v9" />
+      <path d="M7.5 6.5a7 7 0 1 0 9 0" />
+    </svg>
+  )
+}
+
 export function MenuBar() {
   const shell = useShell()
   const theme = useSyncExternalStore(subscribeTheme, currentTheme, currentTheme)
@@ -109,6 +219,7 @@ export function MenuBar() {
         >
           {theme === 'dark' ? SUN : MOON}
         </button>
+        <AccountMenu />
         <div className="mb-clock">{now}</div>
       </div>
     </div>
