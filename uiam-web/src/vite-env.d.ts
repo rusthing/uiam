@@ -23,4 +23,12 @@ interface ImportMetaEnv {
    * 配了之后启动时 GET 快照、改动防抖 PUT，失败静默回退 localStorage。
    */
   readonly VITE_PREFERENCES_URL?: string
+  /** 外部控制台地址覆盖（开发联调用；留空走同源 /xxx-web/ 前缀） */
+  readonly VITE_MSG_WEB_URL?: string
+  readonly VITE_ALARM_WEB_URL?: string
+  readonly VITE_DBZ_WEB_URL?: string
+  readonly VITE_SYN_WEB_URL?: string
+  readonly VITE_ADM_WEB_URL?: string
+  readonly VITE_DTW_WEB_URL?: string
+  readonly VITE_JOBX_WEB_URL?: string
 }

@@ -32,6 +32,9 @@ export interface WinState {
 interface ShellApi {
   wins: WinState[]
   focusId: string | null
+  /** 子应用回报的动态标题；没有回报时窗口沿用 APP_MAP 里的名字 */
+  titles: Record<string, string>
+  setWinTitle: (id: string, title: string) => void
   openApp: (id: string) => void
   closeWin: (id: string) => void
   minimizeWin: (id: string) => void
@@ -137,6 +140,7 @@ function placeWindow(id: string, cascade: number, saved?: Geo) {
 export function ShellProvider({ children }: { children: ReactNode }) {
   const [wins, setWins] = useState<WinState[]>([])
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [titles, setTitles] = useState<Record<string, string>>({})
   const [pinned, setPinned] = useState<string[]>(loadPinned)
   const [editing, setEditing] = useState(false)
   const [launchpad, setLaunchpad] = useState(false)
@@ -173,8 +177,19 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     setFocusId(id)
   }, [])
 
+  const setWinTitle = useCallback((id: string, title: string) => {
+    setTitles((prev) => (prev[id] === title ? prev : { ...prev, [id]: title }))
+  }, [])
+
   const openApp = useCallback((id: string) => {
-    if (!APP_MAP[id]) return
+    const app = APP_MAP[id]
+    if (!app) return
+    // 新页面模式不占桌面窗口：直接给浏览器，Dock 上也不留运行点
+    if (app.mode === 'external' && app.url) {
+      window.open(app.url, '_blank', 'noopener,noreferrer')
+      setLaunchpad(false)
+      return
+    }
     zRef.current += 1
     const z = zRef.current
     setWins((prev) => {
@@ -193,6 +208,12 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const closeWin = useCallback((id: string) => {
     setWins((prev) => prev.filter((w) => w.id !== id))
     setFocusId((cur) => (cur === id ? null : cur))
+    setTitles((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
   const minimizeWin = useCallback((id: string) => {
@@ -270,6 +291,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     () => ({
       wins,
       focusId,
+      titles,
+      setWinTitle,
       openApp,
       closeWin,
       minimizeWin,
@@ -287,6 +310,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     [
       wins,
       focusId,
+      titles,
+      setWinTitle,
       openApp,
       closeWin,
       minimizeWin,

@@ -56,6 +56,55 @@ export function AppIcon({ id }: { id: string }) {
           <path d="M12 16.2v-4.6M12 8.2h.01" />
         </Glyph>
       )
+    case 'msg':
+      return (
+        <Glyph>
+          <rect x="3" y="5" width="18" height="14" rx="2.4" />
+          <path d="m3.8 6.4 8.2 6 8.2-6" />
+        </Glyph>
+      )
+    case 'alarm':
+      return (
+        <Glyph>
+          <path d="M6.4 16.2V10a5.6 5.6 0 0 1 11.2 0v6.2l1.6 2H4.8z" />
+          <path d="M10 19.4a2.2 2.2 0 0 0 4 0" />
+        </Glyph>
+      )
+    case 'dbz':
+      return (
+        <Glyph>
+          <ellipse cx="12" cy="6.2" rx="7.4" ry="2.8" />
+          <path d="M4.6 6.2v11.6c0 1.5 3.3 2.8 7.4 2.8s7.4-1.3 7.4-2.8V6.2" />
+          <path d="M4.6 12c0 1.5 3.3 2.8 7.4 2.8s7.4-1.3 7.4-2.8" />
+        </Glyph>
+      )
+    case 'syn':
+      return (
+        <Glyph>
+          <path d="M4 8.4h13l-3-3M20 15.6H7l3 3" />
+        </Glyph>
+      )
+    case 'adm':
+      return (
+        <Glyph>
+          <path d="M12 3.2 4.8 6v5.4c0 4.4 3 8.3 7.2 9.4 4.2-1.1 7.2-5 7.2-9.4V6z" />
+          <path d="M9.4 12l1.8 1.8 3.4-3.6" />
+        </Glyph>
+      )
+    case 'dtw':
+      return (
+        <Glyph>
+          <path d="M12 21s6-5.2 6-10.2a6 6 0 1 0-12 0C6 15.8 12 21 12 21z" />
+          <circle cx="12" cy="10.6" r="2.2" />
+        </Glyph>
+      )
+    case 'jobx':
+      return (
+        <Glyph>
+          <circle cx="12" cy="12" r="8.6" />
+          <path d="M12 7v5.4l3.4 2" />
+        </Glyph>
+      )
     default:
       return (
         <Glyph>

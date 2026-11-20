@@ -179,7 +179,7 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
               <AppIcon id={app.id} />
             </span>
           )}
-          {app?.name ?? win.id}
+          {shell.titles[win.id] ?? app?.name ?? win.id}
         </div>
         <div className="win-bar-extra" />
       </div>
