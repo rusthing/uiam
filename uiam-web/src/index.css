@@ -1537,6 +1537,26 @@ body.editing .wg-add {
     inset 0 -1px 1px rgba(0, 0, 0, 0.14),
     0 0 0 1.5px rgba(255, 255, 255, 0.72);
 }
+/* 固定栏的图标可以拖着重排：给一个「抓得住」的手势提示 */
+.dock-item.pinned {
+  cursor: grab;
+}
+.dock-item.pinned:active {
+  cursor: grabbing;
+}
+.dock-item.dragging {
+  opacity: 0.38;
+  transform: scale(0.9);
+  transition:
+    opacity 0.12s,
+    transform 0.12s;
+}
+/* 拖拽重排时关掉 Dock 的放大悬停，不然旁边的图标跟着放大很晃 */
+.dock.sorting .dock-item:hover,
+.dock.sorting .dock-item:hover + .dock-item,
+.dock.sorting .dock-item:has(+ .dock-item:hover) {
+  transform: none;
+}
 .dock-item .tip {
   position: absolute;
   bottom: 100%;

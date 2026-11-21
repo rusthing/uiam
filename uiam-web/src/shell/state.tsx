@@ -1,5 +1,5 @@
 /**
- * 桌面外壳的状态：开着的窗口、焦点、Dock 固定项、编辑态、启动台。
+ * 桌面外壳的状态：开着的窗口、焦点、Dock 固定项与临时栏、编辑态、启动台。
  *
  * 为什么不用 react-router：这一版是一个**桌面**，不是文档站。窗口的开/关/最小化
  * 是内存状态（关掉就没了），URL 里塞不下「三个窗口叠在一起、哪个在最上面」这种
@@ -29,6 +29,18 @@ export interface WinState {
   z: number
 }
 
+/**
+ * 临时栏的一项：开着但没固定的应用，或者最近关掉、还留在栏里的应用。
+ * `closedAt` 是关闭序号，只为「超过 3 个时挤掉最早关的那个」排序用；开着时为 null。
+ */
+export interface TempDockItem {
+  id: string
+  closedAt: number | null
+}
+
+/** 临时栏最多留住几个「已经关掉」的应用 */
+const TEMP_KEEP = 3
+
 interface ShellApi {
   wins: WinState[]
   focusId: string | null
@@ -46,6 +58,10 @@ interface ShellApi {
   resizeWin: (id: string, geo: { x: number; y: number; w: number; h: number }) => void
   pinned: string[]
   togglePin: (id: string) => void
+  /** 拖拽重排固定栏：把 `id` 挪到第 `to` 位（越界会被 clamp） */
+  movePin: (id: string, to: number) => void
+  /** 临时栏：开着但没固定的 + 最近关掉还没被挤掉的，按进栏顺序排 */
+  temp: TempDockItem[]
   editing: boolean
   setEditing: (v: boolean) => void
   launchpad: boolean
@@ -123,6 +139,20 @@ function clampGeo(g: Geo): Geo {
   }
 }
 
+/** 临时栏最多留住 3 个「已经关掉」的应用，超了就挤掉最早关的那个 */
+function trimTemp(items: TempDockItem[]): TempDockItem[] {
+  const closed = items.filter((i) => i.closedAt !== null)
+  if (closed.length <= TEMP_KEEP) return items
+  const drop = new Set(
+    closed
+      .slice()
+      .sort((a, b) => (a.closedAt as number) - (b.closedAt as number))
+      .slice(0, closed.length - TEMP_KEEP)
+      .map((i) => i.id),
+  )
+  return items.filter((i) => !drop.has(i.id))
+}
+
 /**
  * 开窗几何：有记录就用记录（按视口收），没有就对齐原型的「居中 + 级联偏移」。
  */
@@ -145,6 +175,12 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [titles, setTitles] = useState<Record<string, string>>({})
   const [routes, setRoutes] = useState<Record<string, string>>({})
   const [pinned, setPinned] = useState<string[]>(loadPinned)
+  const [temp, setTemp] = useState<TempDockItem[]>([])
+  /** `pinned` 的镜像：`openApp` / `closeWin` 的 setState 回调里读不到最新的 pinned */
+  const pinnedRef = useRef(pinned)
+  pinnedRef.current = pinned
+  /** 关闭序号，只用于临时栏的先进先出淘汰 */
+  const closeSeq = useRef(0)
   const [editing, setEditing] = useState(false)
   const [launchpad, setLaunchpad] = useState(false)
   const zRef = useRef(100)
@@ -200,6 +236,16 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     }
     zRef.current += 1
     const z = zRef.current
+    // 没固定的应用进临时栏；从「最近关掉」里重新拉起来的，位置不变，
+    // 只把 closedAt 清掉——图标不会在栏里跳一下
+    if (!pinnedRef.current.includes(id)) {
+      setTemp((prev) => {
+        const hit = prev.find((i) => i.id === id)
+        if (!hit) return [...prev, { id, closedAt: null }]
+        if (hit.closedAt === null) return prev
+        return prev.map((i) => (i.id === id ? { ...i, closedAt: null } : i))
+      })
+    }
     setWins((prev) => {
       // 已经开着（可能被最小化了）：抬到最前并还原，不能只是「focus」——
       // 最小化的窗口还挂在 DOM 上，不把 min 清掉，点 Dock 会像没反应
@@ -221,6 +267,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       const next = { ...prev }
       delete next[id]
       return next
+    })
+    // 关掉不等于从 Dock 上消失：留在临时栏里，攒够 TEMP_KEEP 个之后先进先出地挤掉
+    setTemp((prev) => {
+      if (!prev.some((i) => i.id === id)) return prev
+      closeSeq.current += 1
+      const seq = closeSeq.current
+      return trimTemp(prev.map((i) => (i.id === id ? { ...i, closedAt: seq } : i)))
     })
   }, [])
 
@@ -268,15 +321,44 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     [saveGeo],
   )
 
+  /** 拖拽重排固定栏。存 localStorage，和 `togglePin` 走同一个 key */
+  const movePin = useCallback((id: string, to: number) => {
+    const cur = pinnedRef.current
+    const from = cur.indexOf(id)
+    if (from < 0) return
+    const target = Math.max(0, Math.min(to, cur.length - 1))
+    if (from === target) return
+    const next = cur.slice()
+    next.splice(from, 1)
+    next.splice(target, 0, id)
+    pinnedRef.current = next
+    setPinned(next)
+    try {
+      localStorage.setItem(PIN_KEY, JSON.stringify(next))
+    } catch {
+      // 存不下就只在本页生效
+    }
+  }, [])
+
   const togglePin = useCallback((id: string) => {
-    setPinned((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-      try {
-        localStorage.setItem(PIN_KEY, JSON.stringify(next))
-      } catch {
-        // 存不下就只在本页生效
-      }
-      return next
+    const wasPinned = pinnedRef.current.includes(id)
+    const next = wasPinned
+      ? pinnedRef.current.filter((x) => x !== id)
+      : [...pinnedRef.current, id]
+    pinnedRef.current = next
+    setPinned(next)
+    try {
+      localStorage.setItem(PIN_KEY, JSON.stringify(next))
+    } catch {
+      // 存不下就只在本页生效
+    }
+    setTemp((prev) => {
+      // 变固定：从临时栏搬到固定栏
+      if (!wasPinned) return prev.filter((i) => i.id !== id)
+      // 取消固定：还开着的回到临时栏末尾；没开着的就直接离开 Dock
+      if (prev.some((i) => i.id === id)) return prev
+      const running = winsRef.current.some((w) => w.id === id)
+      return running ? [...prev, { id, closedAt: null }] : prev
     })
   }, [])
 
@@ -311,6 +393,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       resizeWin,
       pinned,
       togglePin,
+      movePin,
+      temp,
       editing,
       setEditing,
       launchpad,
@@ -331,6 +415,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       resizeWin,
       pinned,
       togglePin,
+      movePin,
+      temp,
       editing,
       launchpad,
     ],

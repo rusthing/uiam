@@ -1,9 +1,11 @@
 /**
- * Dock：启动台 + 固定栏 + 临时栏 + 废纸篓。
+ * Dock：启动台 + 固定栏 + 临时栏。
  *
  * 「固定」是用户的意图（右键可改，存 localStorage），「临时」是当前开着但没固定的
- * 应用——这两栏分开，关掉窗口后临时栏自然清空，不会在 Dock 上留下一条永久的垃圾。
- * 运行点（`.run`）和活动点（加宽）沿用原型的两级语义：开着 = 小圆点，在最前面 = 长条。
+ * 应用，外加最近关掉还没被挤掉的那几个——关窗不等于从 Dock 上消失，但也不会无限
+ * 堆积：临时栏最多留住 3 个已关闭的应用，第 4 个关掉时最早关的那个被挤出去。
+ * 运行点（`.run`）沿用原型的两级语义：开着 = 小圆点，在最前面 = 长条；已经关掉、
+ * 只是还留在栏里的项没有点，点它等于重新拉起。
  */
 import { useEffect, useState } from 'react'
 import { APPS, APP_MAP } from '../apps/meta'
@@ -30,6 +32,8 @@ export function Dock() {
   const shell = useShell()
   const toast = useToast()
   const [ctx, setCtx] = useState<{ id: string; x: number; y: number } | null>(null)
+  /** 正在被拖的固定项。拖拽过程中经过别的图标就即时换位，松手不用再算落点 */
+  const [dragId, setDragId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!ctx) return
@@ -38,24 +42,50 @@ export function Dock() {
     return () => document.removeEventListener('click', close)
   }, [ctx])
 
-  const temp = shell.wins.map((w) => w.id).filter((id) => !shell.pinned.includes(id))
+  const temp = shell.temp
   const isRunning = (id: string) => shell.wins.some((w) => w.id === id)
   const isActive = (id: string) =>
     shell.focusId === id && shell.wins.some((w) => w.id === id && !w.min)
 
-  const item = (id: string) => {
+  /**
+   * `pinIdx` 只有固定栏的图标才给：它既是「可拖」的开关，也是落点位置。
+   * 临时栏不参与重排（顺序跟开窗/关闭的先后绑定，拖了也没有语义）。
+   */
+  const item = (id: string, pinIdx?: number) => {
     const app = APP_MAP[id]
     if (!app) return null
+    const sortable = pinIdx !== undefined
     return (
       <button
         key={id}
         className={cx(
           'dock-item',
+          sortable && 'pinned',
           isRunning(id) && 'running',
           isActive(id) && 'active',
+          dragId === id && 'dragging',
         )}
         data-id={id}
+        draggable={sortable}
         onClick={() => shell.openApp(id)}
+        onDragStart={(e) => {
+          if (!sortable) return
+          e.dataTransfer.effectAllowed = 'move'
+          // Firefox 不写 data 就不会真正开始拖拽
+          e.dataTransfer.setData('text/plain', id)
+          setDragId(id)
+        }}
+        onDragEnter={() => {
+          if (dragId && sortable && dragId !== id) shell.movePin(dragId, pinIdx)
+        }}
+        onDragOver={(e) => {
+          if (dragId) e.preventDefault()
+        }}
+        onDragEnd={() => setDragId(null)}
+        onDrop={(e) => {
+          if (dragId) e.preventDefault()
+          setDragId(null)
+        }}
         onContextMenu={(e) => {
           e.preventDefault()
           setCtx({
@@ -75,7 +105,7 @@ export function Dock() {
 
   return (
     <>
-      <div className="dock">
+      <div className={cx('dock', dragId && 'sorting')}>
         <button
           className="dock-item"
           onClick={() => shell.setLaunchpad(!shell.launchpad)}
@@ -87,22 +117,9 @@ export function Dock() {
           <div className="tip">启动台</div>
         </button>
         <div className="dock-sep" />
-        <div className="dock-group">{shell.pinned.map(item)}</div>
+        <div className="dock-group">{shell.pinned.map((id, i) => item(id, i))}</div>
         {temp.length > 0 && <div className="dock-sep" />}
-        <div className="dock-group">{temp.map(item)}</div>
-        <div className="dock-sep" />
-        <button
-          className="dock-item"
-          onClick={() => toast.info('废纸篓是空的——删掉的网关实例在库里就被删了，没有回收站')}
-          aria-label="废纸篓"
-        >
-          <div className="tile" style={{ ['--c1' as string]: '#dedee2', ['--c2' as string]: '#b4b4ba' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#5f5f66" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M5 7h14M9.5 7V5.2c0-.7.5-1.2 1.2-1.2h2.6c.7 0 1.2.5 1.2 1.2V7M6.5 7l.9 12.1c0 .8.7 1.4 1.5 1.4h6.2c.8 0 1.5-.6 1.5-1.4L17.5 7" />
-            </svg>
-          </div>
-          <div className="tip">废纸篓</div>
-        </button>
+        <div className="dock-group">{temp.map((t) => item(t.id))}</div>
       </div>
 
       <div
