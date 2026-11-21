@@ -9,7 +9,7 @@
  * 碰到最小宽度后 x 就不能再动，否则窗口会「一边缩小一边往右跑」。所以下限判断
  * 在这里做，`resizeWin` 只负责落值。
  */
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { APP_MAP } from '../apps/meta'
 import { AppIcon } from '../apps/AppIcon'
 import { useShell, type WinState } from './state'
@@ -43,6 +43,11 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
   const shell = useShell()
   const app = APP_MAP[win.id]
   const focused = shell.focusId === win.id
+  /**
+   * 拖动 / 改大小的过程中要关掉几何过渡（`.live`）。开着过渡的话，每帧新坐标都
+   * 被 0.24s 的缓动追着走，窗口会像拖着一根橡皮筋——拖拽必须是 1:1 跟手。
+   */
+  const [live, setLive] = useState(false)
   const drag = useRef<{ sx: number; sy: number; x: number; y: number } | null>(null)
 
   const onBarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -51,6 +56,7 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
     if ((e.target as HTMLElement).closest('.tl')) return
     shell.focusWin(win.id)
     if (win.max) return
+    setLive(true)
     e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = { sx: e.clientX, sy: e.clientY, x: win.x, y: win.y }
   }
@@ -62,6 +68,7 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
   }
 
   const onBarPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setLive(false)
     if (!drag.current) return
     drag.current = null
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -86,6 +93,7 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
     e.preventDefault()
     if (win.max) return
     shell.focusWin(win.id)
+    setLive(true)
     e.currentTarget.setPointerCapture(e.pointerId)
     resize.current = { dir, sx: e.clientX, sy: e.clientY, x: win.x, y: win.y, w: win.w, h: win.h }
   }
@@ -115,6 +123,7 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
   }
 
   const onResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setLive(false)
     if (!resize.current) return
     resize.current = null
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -124,7 +133,13 @@ export function WindowFrame({ win, children }: { win: WinState; children: ReactN
 
   return (
     <div
-      className={cx('window open', focused && 'focus', win.max && 'max')}
+      className={cx(
+        'window open',
+        focused && 'focus',
+        win.max && 'max',
+        live && 'live',
+        win.anim && `anim-${win.anim}`,
+      )}
       style={{
         left: win.x,
         top: win.y,

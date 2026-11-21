@@ -464,6 +464,14 @@ code,
   overflow: hidden;
   min-width: 460px;
   min-height: 280px;
+  /* 缩放 / 还原走这四个长度属性的过渡：目标值是 `.window.max` 那套 `!important`，
+     过渡照样认（它只关心值变了没）。拖拽时由 `.live` 关掉，见上面的注释。 */
+  transition:
+    left 0.24s var(--ease),
+    top 0.24s var(--ease),
+    width 0.24s var(--ease),
+    height 0.24s var(--ease),
+    border-radius 0.24s var(--ease);
   /* 四层：贴边 hairline、远景体积、近景接触影、顶部内高光。
      窗口是画面里最重的一层，投影必须比组件多一档，否则会「飘」在壁纸上 */
   box-shadow:
@@ -472,8 +480,15 @@ code,
     0 14px 34px -14px rgba(4, 8, 20, 0.28),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
 }
+/* 指针驱动的拖拽 / 改大小：几何必须 1:1 跟手，任何过渡都会变成延迟 */
+.window.live {
+  transition: none;
+}
 .window.open {
   display: flex;
+  /* 挂载与「从 Dock 还原」都会重放这一条：`display` 从 none 变 flex 时
+     CSS 动画会重新起跑，所以入场只需要这一处声明，不用额外的状态位 */
+  animation: winIn 0.26s var(--ease) both;
 }
 .window.focus {
   box-shadow:
@@ -505,9 +520,6 @@ code,
 }
 /* 入场只做一次、只动 compositor 的两个属性：
    0.24s 的弹性缩放 + 轻微上浮，比纯淡入更像「一扇窗被放下」 */
-.window.animating {
-  animation: winIn 0.26s var(--ease) both;
-}
 @keyframes winIn {
   from {
     opacity: 0;
@@ -516,6 +528,30 @@ code,
   to {
     opacity: 1;
     transform: none;
+  }
+}
+/* 退场：关窗 / 最小化都得先演完再收尾（卸载或 display:none 由 state.tsx 的定时器做），
+   否则 DOM 一没，动画就只是「点一下窗口直接不见」。 */
+.window.anim-closing {
+  animation: winOut 0.19s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+@keyframes winOut {
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+}
+/* 最小化朝 Dock 方向缩下去：以底边中点为原点，读起来是「收进托盘」而不是凭空消失 */
+.window.anim-minimizing {
+  transform-origin: 50% 100%;
+  animation: winMin 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+@keyframes winMin {
+  to {
+    opacity: 0;
+    transform: translateY(72px) scale(0.6);
   }
 }
 
@@ -1531,6 +1567,14 @@ body.editing .wg-add {
     0 0 0 1.5px rgba(255, 255, 255, 0.5);
 }
 .dock-item.active .tile {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.36),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.14),
+    0 0 0 1.5px rgba(255, 255, 255, 0.72);
+}
+/* 「回到桌面」：桌面已经露出来时保持一圈高光，提示再点一次是还原，而不是又收起一遍 */
+.dock-item.toggled .tile {
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.36),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.5),
@@ -3962,8 +4006,14 @@ html.theme-fading * {
 @media (prefers-reduced-motion: reduce) {
   .pop-in,
   .slide-in-right,
-  .window.animating {
+  .window.open,
+  .window.anim-closing,
+  .window.anim-minimizing {
     animation: none;
+  }
+  /* 几何过渡也一并关掉；关窗 / 最小化的定时器照旧，只是屏幕上不再有位移 */
+  .window {
+    transition: none;
   }
 }
 

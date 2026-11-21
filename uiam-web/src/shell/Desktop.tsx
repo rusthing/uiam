@@ -157,10 +157,10 @@ export function Desktop() {
   )
   useWidgetGeometry(widgetsRef, layoutKey, shell.editing)
 
-  // 「调暗桌面小组件 = 自动」：有窗口盖住桌面时组件转单色
+  // 「调暗桌面小组件 = 自动」：有窗口盖住桌面时组件转单色。收起来的窗口不算盖住
   useEffect(() => {
-    syncWindowPresence(shell.wins.length > 0)
-  }, [shell.wins.length])
+    syncWindowPresence(shell.wins.some((w) => !w.min))
+  }, [shell.wins])
 
   // 单元尺寸来自 CSS 变量，列数/可用宽度随容器变化；按下指针时也会现量一次
   const readMetrics = (): Metrics => {

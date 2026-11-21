@@ -28,6 +28,22 @@ const LAUNCH_ICON = (
   </svg>
 )
 
+const DESK_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="#fff"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="3.8" width="18" height="12.4" rx="2" />
+    <rect x="8.8" y="11.4" width="6.4" height="2.4" rx="1.2" />
+    <path d="M12 16.2v3.4M8.4 19.6h7.2" />
+  </svg>
+)
+
+
 export function Dock() {
   const shell = useShell()
   const toast = useToast()
@@ -46,6 +62,8 @@ export function Dock() {
   const isRunning = (id: string) => shell.wins.some((w) => w.id === id)
   const isActive = (id: string) =>
     shell.focusId === id && shell.wins.some((w) => w.id === id && !w.min)
+  /** 桌面上一个窗口都没露出来（全收着或本来就没开），按钮就变成「还原」 */
+  const deskShown = !shell.wins.some((w) => !w.min) && shell.wins.length > 0
 
   /**
    * `pinIdx` 只有固定栏的图标才给：它既是「可拖」的开关，也是落点位置。
@@ -115,6 +133,16 @@ export function Dock() {
             {LAUNCH_ICON}
           </div>
           <div className="tip">启动台</div>
+        </button>
+        <button
+          className={cx('dock-item', deskShown && 'toggled')}
+          onClick={() => shell.toggleDesktop()}
+          aria-label={deskShown ? '还原窗口' : '回到桌面'}
+        >
+          <div className="tile" style={{ ['--c1' as string]: '#7ab6ff', ['--c2' as string]: '#2b5cd9' }}>
+            {DESK_ICON}
+          </div>
+          <div className="tip">{deskShown ? '还原窗口' : '回到桌面'}</div>
         </button>
         <div className="dock-sep" />
         <div className="dock-group">{shell.pinned.map((id, i) => item(id, i))}</div>
