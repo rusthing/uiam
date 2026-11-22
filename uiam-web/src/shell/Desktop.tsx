@@ -20,6 +20,7 @@ import { cx } from '../components/ui'
 import { useShell } from './state'
 import {
   gridOf,
+  SIZE_FAMILY,
   useWidgetLayout,
   WIDGET_DEFS,
   type LayoutItem,
@@ -46,8 +47,16 @@ const I_RESIZE = (
 )
 
 /** 点组件空白区时打开的应用：每类组件都必须有去处，不做点了没反应的卡片 */
+/** 只有网关类卡片才显示「更新于…」；生活类卡片显示自己的数据时间 */
+const OPS_WIDGETS = new Set<WidgetId>([
+  'count', 'enabled', 'nodes', 'releases', 'unpushed', 'attention',
+])
+
 const WIDGET_APP: Record<WidgetId, string> = {
-  clock: 'about',
+  clock: 'life',
+  'clock-digital': 'life',
+  weather: 'life',
+  calendar: 'life',
   count: 'gateway',
   enabled: 'gateway',
   apps: 'settings',
@@ -292,7 +301,7 @@ export function Desktop() {
   const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
     // 非编辑态组件只是入口：点开应用，不进入拖动
     if (!shell.editing) return
-    if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
+    if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
     const m = refreshMetrics()
     const g = gridOf(it.size, m.columns)
     pointerRef.current = {
@@ -402,7 +411,7 @@ export function Desktop() {
   const onActivate = (e: ReactMouseEvent<HTMLDivElement>, id: WidgetId) => {
     if (suppressClick.current) return
     if (shell.editing) return
-    if ((e.target as HTMLElement).closest('button, a, input, [role="switch"]')) return
+    if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
     openWidget(id)
   }
 
@@ -447,7 +456,7 @@ export function Desktop() {
                 style={style}
                 role="button"
                 tabIndex={0}
-                aria-label={`${def.name}，按回车打开${WIDGET_APP[it.id] === 'gateway' ? '网关配置' : '对应应用'}`}
+                aria-label={`${def.name}，按回车打开${WIDGET_APP[it.id] === 'gateway' ? '网关配置' : WIDGET_APP[it.id] === 'life' ? '生活应用' : '对应应用'}`}
                 onPointerDown={(e) => onWidgetPointerDown(e, it)}
                 onPointerMove={onWidgetPointerMove}
                 onPointerUp={onWidgetPointerUp}
@@ -462,6 +471,9 @@ export function Desktop() {
               >
                 {shell.editing && (
                   <>
+                    <span className="wg-size-tag" data-wg-no-drag title="当前尺寸">
+                      {SIZE_FAMILY[it.size].label} · {g.w}×{g.h}
+                    </span>
                     <button
                       className="wg-remove"
                       onClick={(e) => {
@@ -473,6 +485,24 @@ export function Desktop() {
                     >
                       {I_MINUS}
                     </button>
+                    <div className="wg-tools" data-wg-no-drag role="group" aria-label={`${def.name}尺寸`}>
+                      {def.sizes.map((s) => (
+                        <button
+                          key={s}
+                          className={cx('wg-tool-size', it.size === s && 'on')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const m = refreshMetrics()
+                            const g = gridOf(s, m.columns)
+                            setSize(it.id, s, m.columns, maxXFor(g.w, m))
+                          }}
+                          title={`${SIZE_FAMILY[s].label} · ${SIZE_FAMILY[s].w}×${SIZE_FAMILY[s].h}`}
+                          aria-label={`把${def.name}改成${SIZE_FAMILY[s].label} ${SIZE_FAMILY[s].w}乘${SIZE_FAMILY[s].h}`}
+                        >
+                          {SIZE_FAMILY[s].w}×{SIZE_FAMILY[s].h}
+                        </button>
+                      ))}
+                    </div>
                     <button
                       className="wg-resize"
                       onPointerDown={(e) => onResizeDown(e, it)}
@@ -495,7 +525,9 @@ export function Desktop() {
                   </>
                 )}
                 <WidgetBody id={it.id} size={it.size} />
-                {(it.size === 'large' || it.size === 'xl') && <WidgetUpdatedAt />}
+                {OPS_WIDGETS.has(it.id) && (it.size === 'large' || it.size === 'xl') && (
+                  <WidgetUpdatedAt />
+                )}
               </div>
             )
           })}

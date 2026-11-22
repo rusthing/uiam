@@ -15,6 +15,9 @@ import { readPref, subscribePrefs, writePref } from '../lib/preferences'
 
 export type WidgetId =
   | 'clock'
+  | 'clock-digital'
+  | 'weather'
+  | 'calendar'
   | 'count'
   | 'enabled'
   | 'apps'
@@ -39,7 +42,7 @@ export interface WidgetDef {
   name: string
   /** 小组件中心里的描述：动词开头，不说「此组件显示…」 */
   desc: string
-  category: '概览' | '发布' | '快捷'
+  category: '生活' | '概览' | '发布' | '快捷'
   size: WidgetSize
   /** 这个组件允许的尺寸；大尺寸必须带来信息增量，不是把小卡拉大 */
   sizes: WidgetSize[]
@@ -63,14 +66,41 @@ export interface AddAt {
 }
 
 interface LayoutState {
-  version: 3
+  version: number
   items: LayoutItem[]
 }
 
+/**
+ * 布局版本。v4 补新组件；v5/v6/v7 调过生活卡尺寸；v8 定为时钟/日历 1×1；
+ * v9 加回数字时钟；v10 按反馈把数字时钟定为一格、天气定为两格（2×1），
+ * 完整的 2×2 天气仍可在编辑态一键切换、生活窗口里常驻。
+ * 用版本号而不是「每次缺了就补」，是为了让用户手动移除的卡片不会被反复加回来。
+ */
+const VERSION = 10
+/** 从旧版本升级时一次性补进桌面的新组件 */
+const INTRODUCED_IN_V4: WidgetId[] = ['weather', 'calendar']
+const INTRODUCED_IN_V9: WidgetId[] = ['clock-digital']
+/** v8 里调整尺寸的组件 */
+const RESIZED_IN_V8: WidgetId[] = ['weather', 'clock', 'calendar']
+/** v10 里调整尺寸的组件 */
+const RESIZED_IN_V10: WidgetId[] = ['clock-digital', 'weather']
+
 export const WIDGET_DEFS: Record<WidgetId, WidgetDef> = {
   clock: {
-    id: 'clock', name: '时钟', desc: '查看当前时间与日期', category: '概览',
-    size: 'medium', sizes: ['small', 'medium'],
+    id: 'clock', name: '时钟', desc: '一格方卡里的表盘与秒针', category: '生活',
+    size: 'small', sizes: ['small', 'medium', 'large', 'xl'],
+  },
+  'clock-digital': {
+    id: 'clock-digital', name: '数字时钟', desc: '一格方卡里的大号数字时间', category: '生活',
+    size: 'small', sizes: ['small', 'medium'],
+  },
+  weather: {
+    id: 'weather', name: '天气', desc: '实时天气、逐小时与未来几天预报', category: '生活',
+    size: 'medium', sizes: ['small', 'medium', 'large', 'xl'],
+  },
+  calendar: {
+    id: 'calendar', name: '日历', desc: '今天的日期与农历', category: '生活',
+    size: 'small', sizes: ['small', 'medium', 'large', 'xl'],
   },
   count: {
     id: 'count', name: '网关实例', desc: '查看网关实例总数', category: '概览',
@@ -104,7 +134,10 @@ export const WIDGET_DEFS: Record<WidgetId, WidgetDef> = {
 
 /** 默认顺序：只描述「放什么、多大」，坐标由 `packItems` 生成 */
 const DEFAULT_ORDER: Array<Pick<LayoutItem, 'id' | 'size'>> = [
-  { id: 'clock', size: 'medium' },
+  { id: 'weather', size: 'medium' },
+  { id: 'clock', size: 'small' },
+  { id: 'clock-digital', size: 'small' },
+  { id: 'calendar', size: 'small' },
   { id: 'count', size: 'small' },
   { id: 'enabled', size: 'small' },
   { id: 'releases', size: 'medium' },
@@ -261,7 +294,7 @@ export function packItems(
 }
 
 const DEFAULT_STATE: LayoutState = {
-  version: 3,
+  version: VERSION,
   items: packItems(DEFAULT_ORDER, DEFAULT_COLUMNS),
 }
 
@@ -326,14 +359,72 @@ function sanitizeItems(raw: unknown, keepCoords: boolean): LayoutItem[] | null {
   return items
 }
 
+/** 老布局升级时追加新卡片：已有卡片的位置一个都不动，新卡片找第一个空位 */
+function appendNewItems(items: LayoutItem[], ids: WidgetId[]): LayoutItem[] {
+  let next = items
+  for (const id of ids) {
+    if (next.some((it) => it.id === id)) continue
+    const def = WIDGET_DEFS[id]
+    const { w, h } = gridOf(def.size, DEFAULT_COLUMNS)
+    const spot = firstFree(occupiedOf(next, null, DEFAULT_COLUMNS), w, h, DEFAULT_COLUMNS)
+    next = [...next, { id, size: def.size, ...spot }]
+  }
+  return next
+}
+
+/** 老布局升级到 v8：时钟/日历缩成小方块、天气放大，就近避开原有卡片 */
+function upgradeToV8(items: LayoutItem[]): LayoutItem[] {
+  let next = items
+  for (const id of RESIZED_IN_V8) {
+    if (!next.some((it) => it.id === id)) continue
+    next = next.map((it) =>
+      it.id === id ? { ...it, size: WIDGET_DEFS[id].size } : it,
+    )
+    next = settleItem(next, id, DEFAULT_COLUMNS)
+  }
+  return next
+}
+
+/** 老布局升级到 v10：数字时钟缩成一格、天气改成两格，就近避开原有卡片 */
+function upgradeToV10(items: LayoutItem[]): LayoutItem[] {
+  let next = items
+  for (const id of RESIZED_IN_V10) {
+    if (!next.some((it) => it.id === id)) continue
+    next = next.map((it) => (it.id === id ? { ...it, size: WIDGET_DEFS[id].size } : it))
+    next = settleItem(next, id, DEFAULT_COLUMNS)
+  }
+  return next
+}
+
 function normalizeState(raw: unknown): LayoutState {
-  // v2/v3：{ version, free?, items }
+  // v2/v3/v4：{ version, free?, items }
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const state = raw as { version?: unknown; free?: unknown; items?: unknown }
     // v2 的 free:false 代表「紧凑顺序」，升级后按数组顺序重新排；free:true 保留坐标
     const keepCoords = state.free !== false
     const items = sanitizeItems(state.items, keepCoords)
-    if (items) return { version: 3, items }
+    if (items) {
+      if (state.version === VERSION) return { version: VERSION, items }
+      // v7 的布局已被 v8 彻底重排，直接落回新默认
+      if (state.version === 7) return DEFAULT_STATE
+      // v8 桌面只缺新加回来的数字时钟，其余位置保持不动
+      if (state.version === 8) {
+        return {
+          version: VERSION,
+          items: upgradeToV10(appendNewItems(items, INTRODUCED_IN_V9)),
+        }
+      }
+      // v9 桌面已经有数字时钟，只改尺寸，不挪位置
+      if (state.version === 9) {
+        return { version: VERSION, items: upgradeToV10(items) }
+      }
+      return {
+        version: VERSION,
+        items: upgradeToV10(
+          upgradeToV8(appendNewItems(items, [...INTRODUCED_IN_V4, ...INTRODUCED_IN_V9])),
+        ),
+      }
+    }
   }
   // v1：纯数组 [{ id, w, h }]
   if (Array.isArray(raw)) {
@@ -344,7 +435,14 @@ function normalizeState(raw: unknown): LayoutState {
       })),
       false,
     )
-    if (items) return { version: 3, items }
+    if (items) {
+      return {
+        version: VERSION,
+        items: upgradeToV10(
+          upgradeToV8(appendNewItems(items, [...INTRODUCED_IN_V4, ...INTRODUCED_IN_V9])),
+        ),
+      }
+    }
   }
   return DEFAULT_STATE
 }
@@ -379,7 +477,7 @@ export function useWidgetLayout() {
         const occupied = occupiedOf(prev.items, null, DEFAULT_COLUMNS)
         const spot = firstFree(occupied, w, h, DEFAULT_COLUMNS)
         return {
-          version: 3,
+          version: VERSION,
           items: [...prev.items, { id, size: chosen, x: spot.x, y: spot.y }],
         }
       })
@@ -396,7 +494,7 @@ export function useWidgetLayout() {
       update((prev) => {
         if (prev.items.some((it) => it.id === id)) return prev
         return {
-          version: 3,
+          version: VERSION,
           items: [
             ...prev.items,
             { id, size, x: clampTo(at.x, maxX), y: Math.max(0, at.y) },
@@ -453,7 +551,7 @@ export function useWidgetLayout() {
     (id: WidgetId, size: WidgetSize, columns = DEFAULT_COLUMNS, maxX = STORED_COLUMNS) => {
       update((prev) => {
         if (!WIDGET_DEFS[id].sizes.includes(size)) return prev
-        return { version: 3, items: resizeAt(prev.items, id, size, columns, maxX) }
+        return { version: VERSION, items: resizeAt(prev.items, id, size, columns, maxX) }
       })
     },
     [update, resizeAt],
@@ -467,7 +565,7 @@ export function useWidgetLayout() {
         if (!item) return prev
         const sizes = WIDGET_DEFS[id].sizes
         const next = sizes[(sizes.indexOf(item.size) + 1) % sizes.length]
-        return { version: 3, items: resizeAt(prev.items, id, next, columns, maxX) }
+        return { version: VERSION, items: resizeAt(prev.items, id, next, columns, maxX) }
       })
     },
     [update, resizeAt],
@@ -480,7 +578,7 @@ export function useWidgetLayout() {
   const move = useCallback(
     (id: WidgetId, x: number, y: number, maxX: number) => {
       update((prev) => ({
-        version: 3,
+        version: VERSION,
         items: prev.items.map((it) =>
           it.id === id ? { ...it, x: clampTo(x, maxX), y: Math.max(0, y) } : it,
         ),

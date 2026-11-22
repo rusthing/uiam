@@ -69,6 +69,16 @@ export const APPS: AppMeta[] = [
     mode: 'internal',
   },
   {
+    id: 'life',
+    name: '生活',
+    desc: '天气、日历与时钟',
+    c1: '#6ed3ff',
+    c2: '#1d6fd4',
+    w: 900,
+    h: 680,
+    mode: 'internal',
+  },
+  {
     id: 'about',
     name: '关于 uiam',
     desc: '版本、设计约束与生效路径',

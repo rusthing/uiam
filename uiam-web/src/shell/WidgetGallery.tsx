@@ -19,7 +19,7 @@ interface Props {
   onClose: () => void
 }
 
-const CATS = ['全部', '概览', '发布', '快捷'] as const
+const CATS = ['全部', '生活', '概览', '发布', '快捷'] as const
 type Cat = (typeof CATS)[number]
 
 export function WidgetGallery({ rest, onAdd, onDragSize, onClose }: Props) {
@@ -122,14 +122,41 @@ export function WidgetGallery({ rest, onAdd, onDragSize, onClose }: Props) {
               onDragEnd={() => setDragging(false)}
               title="拖到桌面任意位置，或点「添加」追加到末尾"
             >
-              <div className="gp-visual" data-id={d.id} aria-hidden="true">
-                <div className="gp-k" />
-                <div className="gp-bars">
-                  <i className="w1" />
-                  <i className="w2" />
-                  <i className="w3" />
-                </div>
-                <div className="gp-dot" />
+              <div
+                className="gp-visual"
+                data-id={d.id}
+                data-size={`${SIZE_FAMILY[chosen].w}x${SIZE_FAMILY[chosen].h}`}
+                aria-hidden="true"
+              >
+                {d.id === 'weather' ? (
+                  <div className={`gp-wx s-${chosen}`}>
+                    <div className="gp-wx-city" />
+                    <div className="gp-wx-main">
+                      <span className="gp-wx-temp" />
+                      <span className="gp-wx-cond" />
+                    </div>
+                    <div className="gp-wx-hours">
+                      {Array.from({ length: chosen === 'medium' || chosen === 'xl' ? 6 : 5 }, (_, i) => (
+                        <i key={i} />
+                      ))}
+                    </div>
+                    {(chosen === 'large' || chosen === 'xl') && (
+                      <div className="gp-wx-days">
+                        {Array.from({ length: 5 }, (_, i) => <i key={i} />)}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="gp-k" />
+                    <div className="gp-bars">
+                      <i className="w1" />
+                      <i className="w2" />
+                      <i className="w3" />
+                    </div>
+                    <div className="gp-dot" />
+                  </>
+                )}
               </div>
               <div className="gp-name">{d.name}</div>
               <div className="gp-desc">{d.desc}</div>
@@ -142,7 +169,10 @@ export function WidgetGallery({ rest, onAdd, onDragSize, onClose }: Props) {
                     aria-pressed={chosen === s}
                     title={`${SIZE_FAMILY[s].label} · ${SIZE_FAMILY[s].w}×${SIZE_FAMILY[s].h}`}
                   >
-                    {SIZE_FAMILY[s].label}
+                    <span className="gp-size-label">{SIZE_FAMILY[s].label}</span>
+                    <span className="gp-size-grid">
+                      {SIZE_FAMILY[s].w}×{SIZE_FAMILY[s].h}
+                    </span>
                   </button>
                 ))}
               </div>

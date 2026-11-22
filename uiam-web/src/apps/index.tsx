@@ -10,6 +10,7 @@
 import { AboutApp } from './AboutApp'
 import { ApiApp } from './ApiApp'
 import { GatewayApp } from './GatewayApp'
+import { LifeApp } from './LifeApp'
 import { SettingsApp } from './SettingsApp'
 import { FederationApp } from './adapters/FederationApp'
 import { IframeApp } from './adapters/IframeApp'
@@ -21,6 +22,8 @@ function InternalBody({ id }: { id: string }) {
   switch (id) {
     case 'gateway':
       return <GatewayApp />
+    case 'life':
+      return <LifeApp />
     case 'api':
       return <ApiApp />
     case 'settings':

@@ -1013,6 +1013,22 @@ html[data-wg-fallback='opaque'] .widget::after {
 .widgets.editing .wg-tools {
   display: flex;
 }
+/* 编辑态角标：直接写出当前占几格，避免「中 = 2×1」看不见 */
+.wg-size-tag {
+  position: absolute;
+  left: 8px;
+  bottom: 7px;
+  z-index: 5;
+  display: none;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(128, 128, 140, 0.34);
+  color: var(--wg-t1);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.widgets.editing .wg-size-tag { display: block; }
 .wg-tool {
   width: 24px;
   height: 24px;
@@ -4737,6 +4753,40 @@ html.theme-fading * {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* 编辑态尺寸按钮：直接点目标档位，不必靠手柄循环猜「中 = 2×1」 */
+.widget > .wg-tools {
+  position: absolute;
+  z-index: 5;
+  top: 7px;
+  left: 34px;
+  right: auto;
+  gap: 2px;
+}
+.wg-tool-size {
+  min-width: 27px;
+  height: 20px;
+  padding: 0 3px;
+  border: 0.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 5px;
+  background: rgba(60, 60, 68, 0.62);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.14s var(--ease);
+}
+.wg-tool-size:hover { background: rgba(10, 132, 255, 0.9); }
+.wg-tool-size.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.wg-tool-size:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 @keyframes wg-jiggle {
   from { transform: rotate(-0.32deg) translateY(0); }
@@ -4941,7 +4991,8 @@ button.wg-add:focus-visible {
 .gp-visual[data-id='enabled'] { background: linear-gradient(150deg, rgba(52, 199, 89, 0.24), rgba(10, 132, 255, 0.12)); }
 .gp-visual[data-id='unpushed'],
 .gp-visual[data-id='attention'] { background: linear-gradient(150deg, rgba(255, 159, 10, 0.26), rgba(255, 99, 72, 0.14)); }
-.gp-visual[data-id='clock'] { background: linear-gradient(150deg, rgba(120, 108, 255, 0.26), rgba(206, 112, 255, 0.14)); }
+.gp-visual[data-id='clock'],
+.gp-visual[data-id='clock-digital'] { background: linear-gradient(150deg, rgba(120, 108, 255, 0.26), rgba(206, 112, 255, 0.14)); }
 .gp-k,
 .gp-bars i {
   display: block;
@@ -4965,6 +5016,36 @@ button.wg-add:focus-visible {
   background: currentColor;
   opacity: 0.18;
 }
+/* 天气预览随尺寸变：2×1 只有小时条，2×2 才多出未来几天条 */
+.gp-wx { display: flex; flex-direction: column; gap: 4px; height: 100%; }
+.gp-wx-city,
+.gp-wx-cond {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.24;
+}
+.gp-wx-city { width: 28%; }
+.gp-wx-main { display: flex; align-items: center; justify-content: space-between; }
+.gp-wx-temp {
+  width: 40%;
+  height: 15px;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.34;
+}
+.gp-wx-cond { width: 24%; }
+.gp-wx-hours,
+.gp-wx-days { display: flex; gap: 3px; }
+.gp-wx-hours i,
+.gp-wx-days i {
+  flex: 1;
+  border-radius: 3px;
+  background: currentColor;
+}
+.gp-wx-hours i { height: 11px; opacity: 0.16; }
+.gp-wx-days i { height: 6px; opacity: 0.12; }
 .gp-name {
   font-size: 13px;
   font-weight: 600;
@@ -4978,9 +5059,13 @@ button.wg-add:focus-visible {
 }
 .gp-sizes {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 .gp-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border: 0.5px solid var(--line-strong);
   border-radius: 6px;
@@ -4994,6 +5079,11 @@ button.wg-add:focus-visible {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
+}
+.gp-size-grid {
+  font-size: 9px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
 }
 .gp-add {
   margin-top: 3px;
@@ -5527,3 +5617,754 @@ button.wg-add:focus-visible {
 .mb-account-item.danger { color: #ff7a6e; }
 .mb-account-item.danger:hover { background: rgba(255, 99, 92, 0.16); }
 .mb-account-item:disabled { opacity: 0.6; cursor: default; }
+
+/* ============================================================
+   生活类 widget：天气 / 日历 / 时钟
+   ------------------------------------------------------------
+   颜色一律走 --wg-t1/t2/line/accent，clear/tinted/调暗三种外观自动生效；
+   尺寸适配用 container query，组件在桌面卡片和「生活」窗口里是同一套样式。
+   ============================================================ */
+.widget[data-id='weather'] { --wg-aura: rgba(10, 132, 255, 0.22); }
+.widget[data-id='calendar'] { --wg-aura: rgba(255, 159, 10, 0.18); }
+.widget[data-id='clock'] { --wg-aura: rgba(120, 108, 255, 0.16); }
+.widget[data-id='clock-digital'] { --wg-aura: rgba(120, 108, 255, 0.14); }
+.gp-visual[data-id='weather'] { background: linear-gradient(150deg, rgba(10, 132, 255, 0.28), rgba(100, 210, 255, 0.14)); }
+.gp-visual[data-id='calendar'] { background: linear-gradient(150deg, rgba(255, 159, 10, 0.28), rgba(255, 99, 72, 0.12)); }
+
+.wg-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.wg-city {
+  flex: 0 0 auto;
+  max-width: 72px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(128, 128, 140, 0.16);
+  color: var(--wg-t1);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.wg-city option { color: #17171a; }
+.wg-note {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--wg-t2);
+}
+
+.wg-weather {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.wg-wx-now {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+}
+.wg-wx-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  color: var(--wg-t2);
+}
+.wg-wx-main { min-width: 0; }
+.wg-wx-temp {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+}
+.wg-wx-temp small {
+  font-size: 22px;
+  color: var(--wg-t2);
+  vertical-align: top;
+}
+.wg-wx-desc {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--wg-t2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wg-wx-meta {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--wg-t2);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wg-wx-hours {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wg-line);
+}
+.wg-wx-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--wg-t2);
+  font-variant-numeric: tabular-nums;
+}
+.wg-wx-hour .wg-wx-icon { width: 22px; height: 22px; }
+.wg-wx-hour b { font-size: 11px; color: var(--wg-t1); }
+.wg-wx-days {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wg-line);
+}
+.wg-wx-day {
+  display: grid;
+  grid-template-columns: 36px 20px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--wg-t2);
+  font-variant-numeric: tabular-nums;
+}
+.wg-wx-day .wg-wx-icon { width: 18px; height: 18px; }
+.wg-wx-range { text-align: right; }
+.wg-wx-range b { color: var(--wg-t1); }
+
+.wg-cal-hint { font-size: 10px; opacity: 0.7; }
+.wg-cal-today {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.wg-cal-daynum {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+.wg-cal-today-sub { margin-top: 8px; font-size: 11px; color: var(--wg-t2); }
+.wg-cal-week {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+.wg-cal-week .wg-cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: rgba(128, 128, 140, 0.09);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.wg-cal-week .wg-cal-cell span { font-size: 9.5px; color: var(--wg-t2); }
+.wg-cal-week .wg-cal-cell.today {
+  background: rgba(10, 132, 255, 0.18);
+  box-shadow: inset 0 0 0 1px var(--wg-accent);
+}
+.wg-cal-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wg-cal-nav {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(128, 128, 140, 0.16);
+  color: var(--wg-t1);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wg-cal-nav:hover { background: rgba(128, 128, 140, 0.28); }
+.wg-cal-back {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wg-accent);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.wg-cal-grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  min-height: 0;
+}
+.wg-cal-weekname {
+  padding-bottom: 2px;
+  text-align: center;
+  font-size: 9.5px;
+  color: var(--wg-t2);
+  opacity: 0.8;
+}
+.wg-cal-grid .wg-cal-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wg-t1);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.wg-cal-grid .wg-cal-cell:hover { background: rgba(128, 128, 140, 0.16); }
+.wg-cal-grid .wg-cal-cell.today {
+  background: rgba(10, 132, 255, 0.18);
+  box-shadow: inset 0 0 0 1px var(--wg-accent);
+  font-weight: 700;
+}
+.wg-cal-grid .wg-cal-cell.selected { background: var(--wg-accent); color: #fff; }
+.wg-cal-grid .wg-cal-cell.outside { opacity: 0.38; }
+.wg-cal-grid .wg-cal-cell.blank { pointer-events: none; }
+.wg-cal-detail {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--wg-line);
+  font-size: 10.5px;
+  color: var(--wg-t2);
+}
+
+.wg-clock.analog {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+.wg-face {
+  position: relative;
+  flex: 0 0 auto;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.3), rgba(128, 128, 140, 0.08));
+  box-shadow:
+    inset 0 0 0 1px var(--wg-line),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.08);
+}
+.wg-mark { position: absolute; font-size: 9px; color: var(--wg-t2); }
+.wg-mark.m12 { top: 5px; left: 50%; transform: translateX(-50%); }
+.wg-mark.m3 { right: 6px; top: 50%; transform: translateY(-50%); }
+.wg-mark.m6 { bottom: 5px; left: 50%; transform: translateX(-50%); }
+.wg-mark.m9 { left: 6px; top: 50%; transform: translateY(-50%); }
+.wg-hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  border-radius: 4px;
+  background: var(--wg-t1);
+  transform-origin: 50% 100%;
+}
+.wg-hand.hour { width: 3px; height: 27px; margin-left: -1.5px; }
+.wg-hand.minute { width: 2px; height: 38px; margin-left: -1px; }
+.wg-hand.second { width: 1.5px; height: 44px; margin-left: -0.75px; background: #ff453a; }
+.wg-pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wg-t1);
+  transform: translate(-50%, -50%);
+}
+.wg-clock-digital { min-width: 0; }
+.wg-clock-digital .wg-time { font-size: 32px; }
+.wg-clock-digital .wg-time small { font-size: 16px; color: var(--wg-t2); }
+
+@container (max-width: 190px) {
+  .wg-wx-icon { width: 34px; height: 34px; }
+  .wg-wx-now { gap: 8px; }
+  .wg-wx-temp { font-size: 32px; }
+  .wg-wx-temp small { font-size: 16px; }
+  .wg-wx-desc { font-size: 10px; }
+  .wg-cal-daynum { font-size: 52px; }
+  .wg-time { font-size: 34px; }
+}
+@container (min-width: 600px) {
+  .wg-face { width: 160px; height: 160px; }
+  .wg-hand.hour { height: 38px; }
+  .wg-hand.minute { height: 54px; }
+  .wg-hand.second { height: 62px; }
+  .wg-clock-digital .wg-time { font-size: 44px; }
+  .wg-wx-temp { font-size: 56px; }
+}
+
+/* 「生活」详情窗口：复用 widget 的渲染，只把玻璃底座换成普通面板 */
+.life-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.life-card {
+  --wg-t1: var(--t1);
+  --wg-t2: var(--t3);
+  --wg-line: var(--line);
+  --wg-accent: var(--accent);
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 260px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--win-bg);
+}
+.life-card.wide { grid-column: 1 / -1; }
+.life-card .wg-updated { color: var(--t3); }
+
+/* ============================================================
+   生活卡片视觉重做（对齐参考图）
+   ------------------------------------------------------------
+   天气：深灰蓝实底 + 白字；日历：白底 + 红色强调 + 农历；
+   时钟：白底表盘 + 黑色刻度数字 + 橙色秒针。选择器比外观模式的
+   `html[data-wg-style=...] .widget` 多一层，确保三张卡不被主题覆盖。
+   ============================================================ */
+
+/* ---- 天气：城市 + 温度 + 最高最低 + 小时行 ----
+   卡片底与文字色完全走 `.widget` 那套语义变量，clear/tinted/调暗都跟着变；
+   这里只定义布局和信息层级，不再给天气单独刷一层深灰底。 */
+.life-card.weather { position: relative; }
+.widget[data-id='weather'] .wg-city {
+  background: rgba(128, 128, 140, 0.16);
+  color: var(--wg-t1);
+}
+.widget[data-id='weather'] .wg-city option { color: #17171a; }
+.widget[data-id='weather'] .wg-updated { color: var(--wg-t2); }
+
+.wg-weather.size-xl { gap: 6px; }
+.wg-wx-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1 1 auto;
+}
+.wg-wx-temp {
+  font-size: 76px;
+  font-weight: 300;
+  letter-spacing: -4px;
+  line-height: 0.9;
+}
+.wg-wx-temp small { font-size: 38px; letter-spacing: -2px; }
+.wg-wx-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+.wg-wx-cond {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wg-wx-cond .wg-wx-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--wg-t1);
+  fill: currentColor;
+  stroke-width: 1.7;
+}
+.wg-wx-hl {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--wg-t2);
+  white-space: nowrap;
+}
+.wg-wx-hl b { color: var(--wg-t1); font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+.wg-wx-hours {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 0;
+  padding-top: 10px;
+  border-top-color: var(--wg-line);
+}
+.wg-wx-hour { gap: 3px; font-size: 10.5px; color: var(--wg-t2); }
+.wg-wx-hour .wg-wx-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--wg-t1);
+  fill: currentColor;
+  stroke-width: 1.5;
+}
+.wg-wx-hour b { color: var(--wg-t1); font-size: 13px; font-weight: 500; }
+/* 大卡的未来几天：星期 / 图标 / 最低 / 温度条 / 最高，条的位置来自真实温度区间 */
+.wg-wx-days {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--wg-line);
+}
+.wg-wx-day {
+  display: grid;
+  grid-template-columns: 44px 24px 32px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: 12px;
+  color: var(--wg-t2);
+  font-variant-numeric: tabular-nums;
+}
+.wg-wx-day-wd { color: var(--wg-t1); font-weight: 600; }
+.wg-wx-day .wg-wx-icon { width: 22px; height: 22px; color: var(--wg-t1); fill: currentColor; stroke-width: 1.5; }
+.wg-wx-day-min { color: var(--wg-t2); }
+.wg-wx-day-max { color: var(--wg-t1); text-align: right; font-weight: 600; }
+.wg-wx-bar {
+  position: relative;
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(128, 128, 140, 0.3);
+  overflow: hidden;
+}
+.wg-wx-bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+
+/* 中卡是默认档：温度与小时行都压紧，不占两行高度 */
+.wg-weather.size-medium .wg-wx-temp { font-size: 46px; letter-spacing: -2px; }
+.wg-weather.size-medium .wg-wx-temp small { font-size: 22px; }
+.wg-weather.size-medium .wg-wx-hl b { font-size: 15px; }
+.wg-weather.size-medium .wg-wx-cond { font-size: 12px; }
+.wg-weather.size-medium .wg-wx-cond .wg-wx-icon { width: 24px; height: 24px; }
+.wg-weather.size-medium .wg-wx-hours { padding-top: 7px; }
+.wg-weather.size-medium .wg-wx-hour .wg-wx-icon { width: 21px; height: 21px; }
+.wg-weather.size-medium .wg-wx-hour b { font-size: 11px; }
+/* 矮宽卡：把纵向留白压到最小，城市/温度/状况/最高最低/小时行一屏放全 */
+.widget[data-id='weather'] > .wg-k { margin-bottom: 4px; font-size: 10.5px; }
+.wg-weather.size-medium { justify-content: space-between; }
+.wg-weather.size-medium .wg-wx-top { align-items: center; }
+.wg-weather.size-medium .wg-wx-right { gap: 6px; padding-top: 0; }
+.wg-weather.size-medium .wg-wx-hl { gap: 10px; font-size: 11px; }
+.wg-weather.size-medium .wg-wx-hours { padding-top: 6px; }
+.wg-weather.size-medium .wg-wx-hour { gap: 1px; font-size: 9.5px; }
+
+/* medium（2×1 默认档）放不下未来几天；切到 large（2×2）才展示逐小时 + 未来几天 */
+.wg-weather.size-medium .wg-wx-days { display: none; }
+.wg-weather.size-large .wg-wx-temp { font-size: 64px; }
+.wg-weather.size-large .wg-wx-temp small { font-size: 32px; }
+.wg-weather.size-large .wg-wx-hours,
+.wg-weather.size-xl .wg-wx-hours { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.wg-weather.size-large .wg-wx-hours { padding-top: 8px; }
+.wg-weather.size-large .wg-wx-days { padding-top: 8px; }
+
+/* 自定义城市：小表单浮在卡片右上角，输入/按钮都排除在拖动与打开应用之外 */
+.wg-wx-tools { display: flex; align-items: center; gap: 4px; }
+.wg-wx-add {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(128, 128, 140, 0.16);
+  color: var(--wg-t1);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wg-wx-add:hover { background: rgba(128, 128, 140, 0.3); }
+.wg-wx-form {
+  position: absolute;
+  top: 30px;
+  right: 8px;
+  z-index: 8;
+  width: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--wg-line);
+  border-radius: 10px;
+  background: var(--wg-bg, rgba(250, 250, 252, 0.96));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  color: var(--wg-t1);
+  font-size: 11px;
+}
+.wg-wx-form-hint { font-size: 10px; color: var(--wg-t2); opacity: 0.85; }
+.wg-wx-form-row { display: flex; gap: 5px; }
+.wg-wx-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--wg-line);
+  border-radius: 6px;
+  background: rgba(128, 128, 140, 0.1);
+  color: var(--wg-t1);
+  font: inherit;
+  font-size: 11px;
+}
+.wg-wx-form-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+.wg-wx-form button {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.wg-wx-form button.danger { color: #ff453a; background: rgba(255, 69, 58, 0.12); }
+.wg-wx-form button:disabled { opacity: 0.55; cursor: default; }
+.wg-wx-form-error { color: #ff453a; line-height: 1.35; }
+
+/* ---- 日历：月份/今日用红色强调，其余颜色跟随 widget 主题 ---- */
+.widget[data-id='calendar'] { --wg-aura: rgba(255, 159, 10, 0.16); }
+.life-card.calendar { position: relative; }
+
+.wg-cal-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.wg-cal-title b { font-size: 20px; font-weight: 600; color: #ff3b30; letter-spacing: -0.4px; }
+.wg-cal-title span { font-size: 12px; color: var(--wg-t2); }
+.wg-cal-title.compact { margin-bottom: 8px; }
+.wg-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-bottom: 6px;
+}
+.wg-cal-navs { display: flex; align-items: center; gap: 4px; }
+.wg-cal-nav {
+  width: 22px;
+  height: 22px;
+  background: rgba(128, 128, 140, 0.14);
+  color: var(--wg-t2);
+  font-size: 16px;
+}
+.wg-cal-nav:hover { background: rgba(128, 128, 140, 0.28); }
+.wg-cal-back { color: #ff3b30; }
+.wg-cal-weeknames {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  flex: 0 0 auto;
+  margin-bottom: 2px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--wg-t2);
+}
+.wg-cal-grid {
+  flex: 1 1 auto;
+  grid-auto-rows: 1fr;
+  gap: 1px;
+}
+.wg-cal-grid .wg-cal-cell {
+  width: 100%;
+  max-width: 38px;
+  justify-self: center;
+  justify-content: flex-start;
+  gap: 0;
+  padding-top: 2px;
+  border-radius: 50%;
+  font-size: 12px;
+}
+.wg-cal-grid .wg-cal-cell b { font-weight: 500; line-height: 1.15; font-size: 13px; }
+.wg-cal-grid .wg-cal-cell small { font-size: 9px; line-height: 1.15; color: var(--wg-t2); }
+/* 正方形大卡：7 列铺开到 294px，农历和数字都不挤 */
+.widget[data-id='calendar'] .wg-cal-grid .wg-cal-cell { max-width: 42px; }
+.wg-cal-grid .wg-cal-cell.today { background: #ff3b30; color: #fff; }
+.wg-cal-grid .wg-cal-cell.today b,
+.wg-cal-grid .wg-cal-cell.today small { color: #fff; }
+.wg-cal-grid .wg-cal-cell.selected:not(.today) b {
+  text-decoration: underline;
+  text-decoration-color: #ff3b30;
+  text-underline-offset: 3px;
+}
+.wg-cal-grid .wg-cal-cell.outside { opacity: 0.34; }
+.wg-cal-grid .wg-cal-cell.blank { visibility: hidden; }
+.wg-cal-detail { border-top-color: var(--wg-line); color: var(--wg-t2); }
+
+.wg-cal-week .wg-cal-cell {
+  gap: 2px;
+  background: transparent;
+  border-radius: 8px;
+}
+.wg-cal-week .wg-cal-wd { font-size: 10px; color: var(--wg-t2); }
+.wg-cal-week .wg-cal-cell b {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 500;
+}
+.wg-cal-week .wg-cal-cell.today b { background: #ff3b30; color: #fff; }
+.wg-cal-week .wg-cal-cell small { font-size: 8px; color: var(--wg-t2); }
+.wg-cal-today { color: #ff3b30; }
+.wg-cal-today-sub { color: var(--wg-t2); }
+
+/* ---- 时钟：白底表盘、黑色刻度数字、橙色秒针 ---- */
+.wg-clock.analog {
+  justify-content: center;
+  gap: 12px;
+}
+.wg-face {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  aspect-ratio: 1;
+  background: none;
+  box-shadow: none;
+  border-radius: 50%;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.18));
+}
+.wg-face-bg { fill: #fff; stroke: rgba(0, 0, 0, 0.08); stroke-width: 1; }
+.wg-clock-digital .wg-time { color: var(--wg-t1); }
+.wg-clock-digital .wg-date { color: var(--wg-t2); }
+/* 默认中卡：表盘缩到 96px，旁边留数字；大卡只放 220px 表盘 */
+/* 1×1 方卡：表盘几乎撑满内容区（参考图里表盘就是主体） */
+.wg-clock.analog.size-small .wg-face { max-width: 100%; }
+.wg-clock.analog.size-medium .wg-face { max-width: 96px; }
+.wg-clock.analog.size-medium .wg-clock-digital .wg-time { font-size: 22px; letter-spacing: -1px; }
+.wg-clock.analog.size-medium .wg-clock-digital .wg-date { font-size: 10px; margin-top: 4px; }
+.wg-clock.analog.size-large .wg-face { max-width: 300px; }
+.wg-clock.analog.size-xl .wg-face { max-width: 280px; }
+.life-card.clock .wg-face { max-width: 200px; }
+
+/* ============================================================
+   一格卡片：数字时钟 / 日历
+   ------------------------------------------------------------
+   数据卡思路：一个主视觉数字 + 一条分隔线 + 一行次要信息。
+   全部颜色走 widget 语义变量，等宽数字避免秒级跳动时布局抖动。
+   ============================================================ */
+.wg-clock.digital {
+  align-items: center;
+  gap: 2px;
+}
+.dc-label {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--wg-t2);
+}
+.dc-time {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--wg-t1);
+}
+.dc-time span { opacity: 0.45; margin: 0 1px; }
+.dc-rule {
+  width: 42px;
+  height: 1px;
+  margin: 5px 0;
+  background: var(--wg-line);
+}
+.dc-date {
+  font-size: 10.5px;
+  white-space: nowrap;
+  color: var(--wg-t2);
+  font-variant-numeric: tabular-nums;
+}
+.dc-date b {
+  margin-left: 5px;
+  color: var(--wg-t1);
+  font-weight: 600;
+}
+.wg-clock.digital.size-medium .dc-time { font-size: 52px; }
+.wg-clock.digital.size-medium .dc-label { font-size: 10px; }
+
+.wg-cal-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 2px;
+}
+.cm-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--wg-t2);
+  white-space: nowrap;
+}
+.cm-top b {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff453a;
+}
+.cm-day {
+  font-family: var(--font-display);
+  font-size: 62px;
+  font-weight: 300;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+  color: var(--wg-t1);
+}
+.cm-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--wg-t2);
+}
+.cm-weekday { color: var(--wg-t1); font-weight: 600; }
+.cm-mark {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ff453a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wg-clock.digital .dc-time,
+  .wg-cal-mini .cm-day { transition: none; }
+}
+

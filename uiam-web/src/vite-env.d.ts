@@ -23,6 +23,10 @@ interface ImportMetaEnv {
    * 配了之后启动时 GET 快照、改动防抖 PUT，失败静默回退 localStorage。
    */
   readonly VITE_PREFERENCES_URL?: string
+  /** 天气接口地址；留空用 Open-Meteo 公共接口（免密钥） */
+  readonly VITE_WEATHER_URL?: string
+  /** 城市名查经纬度的地理编码接口；留空用 Open-Meteo Geocoding */
+  readonly VITE_GEOCODING_URL?: string
   /** 外部控制台地址覆盖（开发联调用；留空走同源 /xxx-web/ 前缀） */
   readonly VITE_MSG_WEB_URL?: string
   readonly VITE_ALARM_WEB_URL?: string

@@ -10,6 +10,7 @@ storage
 # 前端
 uiam-web/node_modules
 uiam-web/dist
+uiam-web/@mf-types
 uiam-web/tsconfig.tsbuildinfo
 *.tsbuildinfo
 
