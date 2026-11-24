@@ -6,6 +6,8 @@
  * 允许和其他组件重叠。内部按钮用 `closest()` 排除，避免「点重试却开了窗口」。
  */
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -15,7 +17,6 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { AppBody } from '../apps'
 import { cx } from '../components/ui'
 import { useShell } from './state'
 import {
@@ -141,6 +142,140 @@ interface ResizeState {
   moved: boolean
 }
 
+interface DesktopWidgetProps {
+  item: LayoutItem
+  index: number
+  metrics: Metrics
+  editing: boolean
+  /** 仅正在拖动的那个组件有值；其它组件保持 null，memo 才有意义 */
+  pos: { x: number; y: number } | null
+  onPointerDown: (e: ReactPointerEvent<HTMLDivElement>, item: LayoutItem) => void
+  onPointerMove: (e: ReactPointerEvent<HTMLDivElement>) => void
+  onPointerUp: () => void
+  onActivate: (e: ReactMouseEvent<HTMLDivElement>, id: WidgetId) => void
+  onOpen: (id: WidgetId) => void
+  onRemove: (id: WidgetId) => void
+  onSetSize: (id: WidgetId, size: WidgetSize) => void
+  onCycleSize: (id: WidgetId, size: WidgetSize) => void
+  onResizeDown: (e: ReactPointerEvent<HTMLButtonElement>, item: LayoutItem) => void
+  onResizeMove: (e: ReactPointerEvent<HTMLButtonElement>) => void
+  onResizeUp: () => void
+}
+
+/**
+ * 单个桌面组件。
+ *
+ * 拆成 memo 组件是因为：窗口拖动、开窗/聚焦、其它组件拖动都会让 `Desktop` 重渲染，
+ * 但一个组件自己的数据没变时不该重新算一遍（日历要换算 42 个农历日、时钟要生成
+ * 60 条刻度）。回调和 metrics 都是外层稳定引用，只有真正变化的那张卡会重渲染。
+ */
+const DesktopWidget = memo(function DesktopWidget({
+  item,
+  index,
+  metrics,
+  editing,
+  pos,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onActivate,
+  onOpen,
+  onRemove,
+  onSetSize,
+  onCycleSize,
+  onResizeDown,
+  onResizeMove,
+  onResizeUp,
+}: DesktopWidgetProps) {
+  const def = WIDGET_DEFS[item.id]
+  const g = gridOf(item.size, metrics.columns)
+  const x = clamp(pos?.x ?? item.x, 0, maxXFor(g.w, metrics))
+  const y = Math.max(0, pos?.y ?? item.y)
+  const style = {
+    ['--w' as string]: g.w,
+    ['--h' as string]: g.h,
+    ['--i' as string]: index,
+    ['--x' as string]: x,
+    ['--y' as string]: y,
+  } as CSSProperties
+
+  return (
+    <div
+      className={cx('widget', pos && 'dragging')}
+      data-id={item.id}
+      style={style}
+      role="button"
+      tabIndex={0}
+      aria-label={`${def.name}，按回车打开${WIDGET_APP[item.id] === 'gateway' ? '网关配置' : WIDGET_APP[item.id] === 'life' ? '生活应用' : '对应应用'}`}
+      onPointerDown={(e) => onPointerDown(e, item)}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onClick={(e) => onActivate(e, item.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          if (!editing) onOpen(item.id)
+        }
+      }}
+    >
+      {editing && (
+        <>
+          <span className="wg-size-tag" data-wg-no-drag title="当前尺寸">
+            {SIZE_FAMILY[item.size].label} · {g.w}×{g.h}
+          </span>
+          <button
+            className="wg-remove"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove(item.id)
+            }}
+            title={`移除${def.name}`}
+            aria-label={`移除${def.name}`}
+          >
+            {I_MINUS}
+          </button>
+          <div className="wg-tools" data-wg-no-drag role="group" aria-label={`${def.name}尺寸`}>
+            {def.sizes.map((s) => (
+              <button
+                key={s}
+                className={cx('wg-tool-size', item.size === s && 'on')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSetSize(item.id, s)
+                }}
+                title={`${SIZE_FAMILY[s].label} · ${SIZE_FAMILY[s].w}×${SIZE_FAMILY[s].h}`}
+                aria-label={`把${def.name}改成${SIZE_FAMILY[s].label} ${SIZE_FAMILY[s].w}乘${SIZE_FAMILY[s].h}`}
+              >
+                {SIZE_FAMILY[s].w}×{SIZE_FAMILY[s].h}
+              </button>
+            ))}
+          </div>
+          <button
+            className="wg-resize"
+            onPointerDown={(e) => onResizeDown(e, item)}
+            onPointerMove={onResizeMove}
+            onPointerUp={onResizeUp}
+            onPointerCancel={onResizeUp}
+            onClick={(e) => {
+              e.stopPropagation()
+              onCycleSize(item.id, item.size)
+            }}
+            title="拖动或点击切换尺寸"
+            aria-label={`切换${def.name}尺寸，当前${item.size}`}
+          >
+            {I_RESIZE}
+          </button>
+        </>
+      )}
+      <WidgetBody id={item.id} size={item.size} />
+      {OPS_WIDGETS.has(item.id) && (item.size === 'large' || item.size === 'xl') && (
+        <WidgetUpdatedAt />
+      )}
+    </div>
+  )
+})
+
 export function Desktop() {
   const shell = useShell()
   const { layout, add, addAt, remove, setSize, cycleSize, move, reset, rest } = useWidgetLayout()
@@ -166,13 +301,16 @@ export function Desktop() {
   )
   useWidgetGeometry(widgetsRef, layoutKey, shell.editing)
 
-  // 「调暗桌面小组件 = 自动」：有窗口盖住桌面时组件转单色。收起来的窗口不算盖住
+  const hasVisibleWindow = shell.wins.some((w) => !w.min)
+
+  // 「调暗桌面小组件 = 自动」：有窗口盖住桌面时组件转单色。收起来的窗口不算盖住。
+  // 依赖布尔值而不是 wins 数组：拖窗口时 wins 每帧都变，但「有没有窗口」没变。
   useEffect(() => {
-    syncWindowPresence(shell.wins.some((w) => !w.min))
-  }, [shell.wins])
+    syncWindowPresence(hasVisibleWindow)
+  }, [hasVisibleWindow])
 
   // 单元尺寸来自 CSS 变量，列数/可用宽度随容器变化；按下指针时也会现量一次
-  const readMetrics = (): Metrics => {
+  const readMetrics = useCallback((): Metrics => {
     const el = widgetsRef.current
     if (!el) return DEFAULT_METRICS
     const cs = getComputedStyle(el)
@@ -186,8 +324,8 @@ export function Desktop() {
       width: el.clientWidth,
       height: el.clientHeight,
     }
-  }
-  const refreshMetrics = () => {
+  }, [])
+  const refreshMetrics = useCallback(() => {
     const next = readMetrics()
     setMetrics((prev) =>
       prev.unit === next.unit &&
@@ -199,7 +337,7 @@ export function Desktop() {
         : next,
     )
     return next
-  }
+  }, [readMetrics])
   useEffect(() => {
     const el = widgetsRef.current
     if (!el) return
@@ -207,13 +345,14 @@ export function Desktop() {
     const ro = new ResizeObserver(refreshMetrics)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [refreshMetrics])
 
   useEffect(() => {
     document.body.classList.toggle('editing', shell.editing)
     return () => document.body.classList.remove('editing')
   }, [shell.editing])
 
+  const { editing, setEditing, setLaunchpad } = shell
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
@@ -221,12 +360,12 @@ export function Desktop() {
         setGalleryOpen(false)
         return
       }
-      shell.setLaunchpad(false)
-      if (shell.editing) shell.setEditing(false)
+      setLaunchpad(false)
+      if (editing) setEditing(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [shell, galleryOpen])
+  }, [editing, setEditing, setLaunchpad, galleryOpen])
 
   useEffect(() => {
     const onReset = () => reset()
@@ -298,28 +437,31 @@ export function Desktop() {
   }
 
   /* ---------- 自由摆放：仅编辑态，近格/靠边才吸附 ---------- */
-  const onWidgetPointerDown = (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
-    // 非编辑态组件只是入口：点开应用，不进入拖动
-    if (!shell.editing) return
-    if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
-    const m = refreshMetrics()
-    const g = gridOf(it.size, m.columns)
-    pointerRef.current = {
-      id: it.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      baseX: it.x,
-      baseY: it.y,
-      w: g.w,
-      h: g.h,
-      metrics: m,
-      maxX: maxXFor(g.w, m),
-      moved: false,
-    }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
+  const onWidgetPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>, it: LayoutItem) => {
+      // 非编辑态组件只是入口：点开应用，不进入拖动
+      if (!editing) return
+      if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
+      const m = refreshMetrics()
+      const g = gridOf(it.size, m.columns)
+      pointerRef.current = {
+        id: it.id,
+        startX: e.clientX,
+        startY: e.clientY,
+        baseX: it.x,
+        baseY: it.y,
+        w: g.w,
+        h: g.h,
+        metrics: m,
+        maxX: maxXFor(g.w, m),
+        moved: false,
+      }
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [editing, refreshMetrics],
+  )
 
-  const onWidgetPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+  const onWidgetPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     const d = pointerRef.current
     if (!d) return
     const dx = e.clientX - d.startX
@@ -339,9 +481,9 @@ export function Desktop() {
     const next = { id: d.id, ...p }
     pointerPosRef.current = next
     setPointerPos(next)
-  }
+  }, [])
 
-  const onWidgetPointerUp = () => {
+  const onWidgetPointerUp = useCallback(() => {
     const d = pointerRef.current
     if (!d) return
     if (d.moved) {
@@ -356,45 +498,51 @@ export function Desktop() {
     pointerRef.current = null
     pointerPosRef.current = null
     setPointerPos(null)
-  }
+  }, [move])
 
   /* ---------- 尺寸手柄：拖过一格升一档，点一下循环一档 ---------- */
-  const onResizeDown = (e: ReactPointerEvent<HTMLButtonElement>, it: LayoutItem) => {
-    e.stopPropagation()
-    const m = refreshMetrics()
-    resizeRef.current = {
-      id: it.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      index: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
-      applied: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
-      columns: m.columns,
-      metrics: m,
-      moved: false,
-    }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
+  const onResizeDown = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>, it: LayoutItem) => {
+      e.stopPropagation()
+      const m = refreshMetrics()
+      resizeRef.current = {
+        id: it.id,
+        startX: e.clientX,
+        startY: e.clientY,
+        index: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
+        applied: WIDGET_DEFS[it.id].sizes.indexOf(it.size),
+        columns: m.columns,
+        metrics: m,
+        moved: false,
+      }
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [refreshMetrics],
+  )
 
-  const onResizeMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const r = resizeRef.current
-    if (!r) return
-    const dx = e.clientX - r.startX
-    const dy = e.clientY - r.startY
-    // 有符号位移：往右/下变大，往左/上变小
-    const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
-    if (Math.abs(delta) < 8) return
-    r.moved = true
-    const pitch = r.metrics.unit + r.metrics.gap
-    const step = delta >= 0 ? Math.floor(delta / pitch) : Math.ceil(delta / pitch)
-    const sizes = WIDGET_DEFS[r.id].sizes
-    const target = Math.max(0, Math.min(sizes.length - 1, r.index + step))
-    if (target === r.applied) return
-    r.applied = target
-    const g = gridOf(sizes[target], r.columns)
-    setSize(r.id, sizes[target], r.columns, maxXFor(g.w, r.metrics))
-  }
+  const onResizeMove = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      const r = resizeRef.current
+      if (!r) return
+      const dx = e.clientX - r.startX
+      const dy = e.clientY - r.startY
+      // 有符号位移：往右/下变大，往左/上变小
+      const delta = Math.abs(dx) >= Math.abs(dy) ? dx : dy
+      if (Math.abs(delta) < 8) return
+      r.moved = true
+      const pitch = r.metrics.unit + r.metrics.gap
+      const step = delta >= 0 ? Math.floor(delta / pitch) : Math.ceil(delta / pitch)
+      const sizes = WIDGET_DEFS[r.id].sizes
+      const target = Math.max(0, Math.min(sizes.length - 1, r.index + step))
+      if (target === r.applied) return
+      r.applied = target
+      const g = gridOf(sizes[target], r.columns)
+      setSize(r.id, sizes[target], r.columns, maxXFor(g.w, r.metrics))
+    },
+    [setSize],
+  )
 
-  const onResizeUp = () => {
+  const onResizeUp = useCallback(() => {
     const r = resizeRef.current
     if (!r) return
     resizeRef.current = null
@@ -404,16 +552,41 @@ export function Desktop() {
         suppressClick.current = false
       }, 0)
     }
-  }
+  }, [])
 
-  const openWidget = (id: WidgetId) => shell.openApp(WIDGET_APP[id])
+  /** 直接点尺寸档位：换算一次当前容器列数再落盘 */
+  const onSetWidgetSize = useCallback(
+    (id: WidgetId, size: WidgetSize) => {
+      const m = refreshMetrics()
+      const g = gridOf(size, m.columns)
+      setSize(id, size, m.columns, maxXFor(g.w, m))
+    },
+    [refreshMetrics, setSize],
+  )
 
-  const onActivate = (e: ReactMouseEvent<HTMLDivElement>, id: WidgetId) => {
-    if (suppressClick.current) return
-    if (shell.editing) return
-    if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
-    openWidget(id)
-  }
+  /** 尺寸手柄点一下：在当前组件允许的尺寸里循环 */
+  const onCycleWidgetSize = useCallback(
+    (id: WidgetId, size: WidgetSize) => {
+      if (suppressClick.current) return
+      const m = refreshMetrics()
+      const sizes = WIDGET_DEFS[id].sizes
+      const next = sizes[(sizes.indexOf(size) + 1) % sizes.length]
+      cycleSize(id, m.columns, maxXFor(gridOf(next, m.columns).w, m))
+    },
+    [refreshMetrics, cycleSize],
+  )
+
+  const openWidget = useCallback((id: WidgetId) => shell.openApp(WIDGET_APP[id]), [shell.openApp])
+
+  const onActivate = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>, id: WidgetId) => {
+      if (suppressClick.current) return
+      if (editing) return
+      if ((e.target as HTMLElement).closest('button, a, input, select, [role="switch"], [data-wg-no-drag]')) return
+      openWidget(id)
+    },
+    [editing, openWidget],
+  )
 
   const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.widget, .window, .dock, .menubar, .gallery')) return
@@ -434,103 +607,27 @@ export function Desktop() {
           {layout.length === 0 && (
             <div className="wg-empty">桌面是空的 —— 点「添加组件」放一个上来</div>
           )}
-          {layout.map((it, i) => {
-            const def = WIDGET_DEFS[it.id]
-            const g = gridOf(it.size, metrics.columns)
-            const pos = pointerPos?.id === it.id ? pointerPos : null
-            const x = clamp(pos?.x ?? it.x, 0, maxXFor(g.w, metrics))
-            const y = Math.max(0, pos?.y ?? it.y)
-            const style = {
-              ['--w' as string]: g.w,
-              ['--h' as string]: g.h,
-              ['--i' as string]: i,
-              ['--x' as string]: x,
-              ['--y' as string]: y,
-            } as CSSProperties
-
-            return (
-              <div
-                key={it.id}
-                className={cx('widget', pos && 'dragging')}
-                data-id={it.id}
-                style={style}
-                role="button"
-                tabIndex={0}
-                aria-label={`${def.name}，按回车打开${WIDGET_APP[it.id] === 'gateway' ? '网关配置' : WIDGET_APP[it.id] === 'life' ? '生活应用' : '对应应用'}`}
-                onPointerDown={(e) => onWidgetPointerDown(e, it)}
-                onPointerMove={onWidgetPointerMove}
-                onPointerUp={onWidgetPointerUp}
-                onPointerCancel={onWidgetPointerUp}
-                onClick={(e) => onActivate(e, it.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    if (!shell.editing) openWidget(it.id)
-                  }
-                }}
-              >
-                {shell.editing && (
-                  <>
-                    <span className="wg-size-tag" data-wg-no-drag title="当前尺寸">
-                      {SIZE_FAMILY[it.size].label} · {g.w}×{g.h}
-                    </span>
-                    <button
-                      className="wg-remove"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        remove(it.id)
-                      }}
-                      title={`移除${def.name}`}
-                      aria-label={`移除${def.name}`}
-                    >
-                      {I_MINUS}
-                    </button>
-                    <div className="wg-tools" data-wg-no-drag role="group" aria-label={`${def.name}尺寸`}>
-                      {def.sizes.map((s) => (
-                        <button
-                          key={s}
-                          className={cx('wg-tool-size', it.size === s && 'on')}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const m = refreshMetrics()
-                            const g = gridOf(s, m.columns)
-                            setSize(it.id, s, m.columns, maxXFor(g.w, m))
-                          }}
-                          title={`${SIZE_FAMILY[s].label} · ${SIZE_FAMILY[s].w}×${SIZE_FAMILY[s].h}`}
-                          aria-label={`把${def.name}改成${SIZE_FAMILY[s].label} ${SIZE_FAMILY[s].w}乘${SIZE_FAMILY[s].h}`}
-                        >
-                          {SIZE_FAMILY[s].w}×{SIZE_FAMILY[s].h}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      className="wg-resize"
-                      onPointerDown={(e) => onResizeDown(e, it)}
-                      onPointerMove={onResizeMove}
-                      onPointerUp={onResizeUp}
-                      onPointerCancel={onResizeUp}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (suppressClick.current) return
-                        const m = refreshMetrics()
-                        const sizes = WIDGET_DEFS[it.id].sizes
-                        const next = sizes[(sizes.indexOf(it.size) + 1) % sizes.length]
-                        cycleSize(it.id, m.columns, maxXFor(gridOf(next, m.columns).w, m))
-                      }}
-                      title="拖动或点击切换尺寸"
-                      aria-label={`切换${def.name}尺寸，当前${it.size}`}
-                    >
-                      {I_RESIZE}
-                    </button>
-                  </>
-                )}
-                <WidgetBody id={it.id} size={it.size} />
-                {OPS_WIDGETS.has(it.id) && (it.size === 'large' || it.size === 'xl') && (
-                  <WidgetUpdatedAt />
-                )}
-              </div>
-            )
-          })}
+          {layout.map((it, i) => (
+            <DesktopWidget
+              key={it.id}
+              item={it}
+              index={i}
+              metrics={metrics}
+              editing={shell.editing}
+              pos={pointerPos?.id === it.id ? pointerPos : null}
+              onPointerDown={onWidgetPointerDown}
+              onPointerMove={onWidgetPointerMove}
+              onPointerUp={onWidgetPointerUp}
+              onActivate={onActivate}
+              onOpen={openWidget}
+              onRemove={remove}
+              onSetSize={onSetWidgetSize}
+              onCycleSize={onCycleWidgetSize}
+              onResizeDown={onResizeDown}
+              onResizeMove={onResizeMove}
+              onResizeUp={onResizeUp}
+            />
+          ))}
           {dropHint && (
             <div
               className="wg-drop-hint"
@@ -549,9 +646,12 @@ export function Desktop() {
 
         <div className="windows">
           {shell.wins.map((w) => (
-            <WindowFrame key={w.id} win={w}>
-              <AppBody id={w.id} />
-            </WindowFrame>
+            <WindowFrame
+              key={w.id}
+              win={w}
+              focused={shell.focusId === w.id}
+              title={shell.titles[w.id]}
+            />
           ))}
         </div>
       </div>

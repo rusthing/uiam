@@ -11,7 +11,7 @@
  * `size` 决定信息增量：small 只给一个关键数字，medium 加一行趋势，large/XL 才
  * 展开列表/表盘/整月。不是把小卡内容等比放大去填满大卡。
  */
-import { useEffect, useState, type FormEvent as ReactFormEvent } from 'react'
+import { memo, useEffect, useState, type FormEvent as ReactFormEvent } from 'react'
 import { APPS } from '../apps/meta'
 import { AppTile } from '../apps/AppTile'
 import { selectGateway } from '../apps/selection'
@@ -30,7 +30,7 @@ import {
   type WeatherKind,
 } from '../lib/weather'
 import { useOverview, type ReleaseRow } from './overview'
-import { useShell } from './state'
+import { useShellActions } from './state'
 import type { WidgetId, WidgetSize } from './useWidgetLayout'
 
 /** 每个实例「最新一版」的状态；桌面上所有跟发布有关的判断都基于它 */
@@ -630,6 +630,41 @@ function DigitalClockWidget({ size }: { size: WidgetSize }) {
 
 /* ---------- 模拟表盘时钟 ---------- */
 
+/** 表盘刻度是静态的：提到模块级，秒针每跳一次不用重建 60 条 line */
+const FACE_TICKS = Array.from({ length: 60 }, (_, i) => {
+  const major = i % 5 === 0
+  return (
+    <line
+      key={i}
+      x1="60"
+      y1={major ? 6 : 8}
+      x2="60"
+      y2={major ? 14 : 11}
+      transform={`rotate(${i * 6} 60 60)`}
+      stroke={major ? '#3a3a3c' : '#c2c2c6'}
+      strokeWidth={major ? 1.5 : 0.8}
+      strokeLinecap="round"
+    />
+  )
+})
+
+const FACE_NUMBERS = Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
+  const rad = ((n * 30 - 90) * Math.PI) / 180
+  return (
+    <text
+      key={n}
+      x={60 + 36 * Math.cos(rad)}
+      y={60 + 36 * Math.sin(rad) + 4}
+      textAnchor="middle"
+      fontSize="11"
+      fontWeight="600"
+      fill="#1c1c1e"
+    >
+      {n}
+    </text>
+  )
+})
+
 function ClockWidget({ size }: { size: WidgetSize }) {
   // 一格小卡也用表盘：SVG 缩放不失真，比换成纯数字更贴近参考图
   const now = useNow(true)
@@ -642,38 +677,8 @@ function ClockWidget({ size }: { size: WidgetSize }) {
     <div className={cx('wg-clock', 'analog', `size-${size}`)}>
       <svg className="wg-face" viewBox="0 0 120 120" role="img" aria-label={`${p(now.getHours())}:${p(now.getMinutes())}`}>
         <circle className="wg-face-bg" cx="60" cy="60" r="58" />
-        {Array.from({ length: 60 }, (_, i) => {
-          const major = i % 5 === 0
-          return (
-            <line
-              key={i}
-              x1="60"
-              y1={major ? 6 : 8}
-              x2="60"
-              y2={major ? 14 : 11}
-              transform={`rotate(${i * 6} 60 60)`}
-              stroke={major ? '#3a3a3c' : '#c2c2c6'}
-              strokeWidth={major ? 1.5 : 0.8}
-              strokeLinecap="round"
-            />
-          )
-        })}
-        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
-          const rad = ((n * 30 - 90) * Math.PI) / 180
-          return (
-            <text
-              key={n}
-              x={60 + 36 * Math.cos(rad)}
-              y={60 + 36 * Math.sin(rad) + 4}
-              textAnchor="middle"
-              fontSize="11"
-              fontWeight="600"
-              fill="#1c1c1e"
-            >
-              {n}
-            </text>
-          )
-        })}
+        {FACE_TICKS}
+        {FACE_NUMBERS}
         <line x1="60" y1="62" x2="60" y2="30" transform={`rotate(${hourDeg} 60 60)`} stroke="#1c1c1e" strokeWidth="4.5" strokeLinecap="round" />
         <line x1="60" y1="64" x2="60" y2="22" transform={`rotate(${minuteDeg} 60 60)`} stroke="#1c1c1e" strokeWidth="3" strokeLinecap="round" />
         <line x1="60" y1="66" x2="60" y2="13" transform={`rotate(${secondDeg} 60 60)`} stroke="#ff9f0a" strokeWidth="1.2" strokeLinecap="round" />
@@ -763,13 +768,13 @@ function EnabledWidget({ size }: { size: WidgetSize }) {
 
 /* ---------- 快捷应用 ---------- */
 function AppsWidget() {
-  const shell = useShell()
+  const { openApp } = useShellActions()
   return (
     <>
       <div className="wg-k">快捷应用</div>
       <div className="wg-apps">
         {APPS.map((a) => (
-          <button key={a.id} className="wg-app" onClick={() => shell.openApp(a.id)} title={a.desc}>
+          <button key={a.id} className="wg-app" onClick={() => openApp(a.id)} title={a.desc}>
             <AppTile id={a.id} />
             <span>{a.name}</span>
           </button>
@@ -782,7 +787,7 @@ function AppsWidget() {
 /* ---------- 实例状态 ---------- */
 function NodesWidget({ size }: { size: WidgetSize }) {
   const { gateways, loading, error, reload } = useOverview()
-  const shell = useShell()
+  const { openApp } = useShellActions()
   const enabled = gateways.filter((g) => g.enabled).length
   const max = size === 'small' ? 2 : size === 'medium' ? 3 : size === 'xl' ? 8 : 6
   if (error) {
@@ -819,7 +824,7 @@ function NodesWidget({ size }: { size: WidgetSize }) {
                 style={{ cursor: 'pointer' }}
                 onClick={() => {
                   selectGateway(g.id)
-                  shell.openApp('gateway')
+                  openApp('gateway')
                 }}
               >
                 <span className={`d ${g.enabled ? '' : 'off'}`} />
@@ -918,7 +923,7 @@ function UnpushedWidget({ size }: { size: WidgetSize }) {
 /* ---------- 待处理 ---------- */
 function AttentionWidget({ size }: { size: WidgetSize }) {
   const { gateways, releases, loading } = useOverview()
-  const shell = useShell()
+  const { openApp } = useShellActions()
   const issues = computeIssues(gateways, releases)
   const max = size === 'xl' ? 6 : size === 'large' ? 5 : 3
   const rows = issues.slice(0, max)
@@ -943,7 +948,7 @@ function AttentionWidget({ size }: { size: WidgetSize }) {
                 className="wg-btn"
                 onClick={() => {
                   selectGateway(it.gateway.id)
-                  shell.openApp('gateway')
+                  openApp('gateway')
                 }}
               >
                 去发布
@@ -964,7 +969,17 @@ function AttentionWidget({ size }: { size: WidgetSize }) {
   )
 }
 
-export function WidgetBody({ id, size }: { id: WidgetId; size: WidgetSize }) {
+/**
+ * 组件内容入口。memo 只比较 id/size 两个原始值：外层卡片因为拖动预览、位置吸附
+ * 重渲染时，内容（日历的农历换算、时钟的刻度、天气的逐小时）不用跟着重算。
+ */
+export const WidgetBody = memo(function WidgetBody({
+  id,
+  size,
+}: {
+  id: WidgetId
+  size: WidgetSize
+}) {
   switch (id) {
     case 'clock':
       return <ClockWidget size={size} />
@@ -991,4 +1006,4 @@ export function WidgetBody({ id, size }: { id: WidgetId; size: WidgetSize }) {
     default:
       return null
   }
-}
+})

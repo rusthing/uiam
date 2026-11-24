@@ -78,7 +78,32 @@ interface ShellApi {
   setLaunchpad: (v: boolean) => void
 }
 
+/**
+ * 只包含稳定回调的那一半 API。
+ *
+ * 独立成另一个 context 是为了让「只调动作、不读状态」的组件（窗口、桌面组件）
+ * 不被 `wins/titles` 的高频更新带着重渲染：拖窗口、切焦点都会换掉 `ShellContext`
+ * 的值，但这里的每个方法都是 `useCallback` 的稳定引用，永远不会变。
+ */
+type ShellActionKey =
+  | 'setWinTitle'
+  | 'openApp'
+  | 'closeWin'
+  | 'minimizeWin'
+  | 'toggleDesktop'
+  | 'toggleMax'
+  | 'focusWin'
+  | 'moveWin'
+  | 'resizeWin'
+  | 'togglePin'
+  | 'movePin'
+  | 'setEditing'
+  | 'setLaunchpad'
+
+export type ShellActions = Pick<ShellApi, ShellActionKey>
+
 const ShellContext = createContext<ShellApi | null>(null)
+const ShellActionsContext = createContext<ShellActions | null>(null)
 
 const PIN_KEY = 'uiam-dock-pinned'
 const GEO_KEY = 'uiam-win-geo'
@@ -487,13 +512,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const value = useMemo<ShellApi>(
+  // 全部是稳定引用：状态变化不会让这份对象换新，动作消费者因此不会被带着重渲染
+  const actions = useMemo<ShellActions>(
     () => ({
-      wins,
-      focusId,
-      titles,
       setWinTitle,
-      routes,
       openApp,
       closeWin,
       minimizeWin,
@@ -502,21 +524,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       focusWin,
       moveWin,
       resizeWin,
-      pinned,
       togglePin,
       movePin,
-      temp,
-      editing,
       setEditing,
-      launchpad,
       setLaunchpad,
     }),
     [
-      wins,
-      focusId,
-      titles,
       setWinTitle,
-      routes,
       openApp,
       closeWin,
       minimizeWin,
@@ -525,16 +539,40 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       focusWin,
       moveWin,
       resizeWin,
-      pinned,
       togglePin,
       movePin,
-      temp,
-      editing,
-      launchpad,
+      setEditing,
+      setLaunchpad,
     ],
   )
 
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>
+  const value = useMemo<ShellApi>(
+    () => ({
+      ...actions,
+      wins,
+      focusId,
+      titles,
+      routes,
+      pinned,
+      temp,
+      editing,
+      launchpad,
+    }),
+    [actions, wins, focusId, titles, routes, pinned, temp, editing, launchpad],
+  )
+
+  return (
+    <ShellActionsContext.Provider value={actions}>
+      <ShellContext.Provider value={value}>{children}</ShellContext.Provider>
+    </ShellActionsContext.Provider>
+  )
+}
+
+/** 只取稳定动作：窗口与桌面组件用它，避免被窗口几何的高频更新带着重渲染 */
+export function useShellActions(): ShellActions {
+  const ctx = useContext(ShellActionsContext)
+  if (!ctx) throw new Error('useShellActions 必须在 ShellProvider 内使用')
+  return ctx
 }
 
 export function useShell(): ShellApi {

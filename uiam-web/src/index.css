@@ -480,15 +480,21 @@ code,
     0 14px 34px -14px rgba(4, 8, 20, 0.28),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
 }
-/* 指针驱动的拖拽 / 改大小：几何必须 1:1 跟手，任何过渡都会变成延迟 */
+/* 指针驱动的拖拽 / 改大小：几何必须 1:1 跟手，任何过渡都会变成延迟。
+   拖动期间坐标走 transform（合成器），因此额外提升成独立图层 */
 .window.live {
   transition: none;
+  will-change: transform;
 }
 .window.open {
   display: flex;
   /* 挂载与「从 Dock 还原」都会重放这一条：`display` 从 none 变 flex 时
      CSS 动画会重新起跑，所以入场只需要这一处声明，不用额外的状态位 */
   animation: winIn 0.26s var(--ease) both;
+}
+/* 拖拽期间入场动画必须让位：keyframes 上的 transform 会覆盖内联的拖拽位移 */
+.window.open.live {
+  animation: none;
 }
 .window.focus {
   box-shadow:

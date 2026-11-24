@@ -5,18 +5,24 @@
  * 不 import 任何业务组件——否则「打开 Dock 就要把网关页面的整棵依赖树拉进来」，
  * 分包和启动顺序都会变差。
  *
- * 内置应用仍走静态 import；外部应用只按 mode 选择适配器，真正的代码在各自站点里。
+ * 内置应用按 id 懒加载：桌面与登录页不再为「网关配置」的表单、关系图、发布链路
+ * 付首屏解析成本，第一次打开对应窗口时才取那一段 chunk。
+ *
+ * `AppBody` 是 memo 的：窗口开关、聚焦、拖动都只改外壳状态，已经打开的应用不该
+ * 因此重新渲染整棵组件树（联邦远程应用尤其贵）。
  */
-import { AboutApp } from './AboutApp'
-import { ApiApp } from './ApiApp'
-import { GatewayApp } from './GatewayApp'
-import { LifeApp } from './LifeApp'
-import { SettingsApp } from './SettingsApp'
+import { lazy, memo, Suspense } from 'react'
 import { FederationApp } from './adapters/FederationApp'
 import { IframeApp } from './adapters/IframeApp'
 import { ExternalApp, PendingApp } from './adapters/SimpleApps'
 import { APP_MAP } from './meta'
 import type { AppMeta } from './meta'
+
+const GatewayApp = lazy(() => import('./GatewayApp').then((m) => ({ default: m.GatewayApp })))
+const LifeApp = lazy(() => import('./LifeApp').then((m) => ({ default: m.LifeApp })))
+const ApiApp = lazy(() => import('./ApiApp').then((m) => ({ default: m.ApiApp })))
+const SettingsApp = lazy(() => import('./SettingsApp').then((m) => ({ default: m.SettingsApp })))
+const AboutApp = lazy(() => import('./AboutApp').then((m) => ({ default: m.AboutApp })))
 
 function InternalBody({ id }: { id: string }) {
   switch (id) {
@@ -55,7 +61,7 @@ function bodyFor(app: AppMeta) {
   }
 }
 
-export function AppBody({ id }: { id: string }) {
+export const AppBody = memo(function AppBody({ id }: { id: string }) {
   const app = APP_MAP[id]
   if (!app) {
     return (
@@ -65,5 +71,15 @@ export function AppBody({ id }: { id: string }) {
       </div>
     )
   }
-  return bodyFor(app)
-}
+  return (
+    <Suspense
+      fallback={
+        <div className="pane">
+          <div className="pane-title">正在加载…</div>
+        </div>
+      }
+    >
+      {bodyFor(app)}
+    </Suspense>
+  )
+})
