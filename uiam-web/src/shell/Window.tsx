@@ -87,7 +87,7 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title }: Wi
     if (e.button !== 0) return
     // 交通灯上的点击不要被拖拽逻辑吞掉
     if ((e.target as HTMLElement).closest('.tl')) return
-    focusWin(win.id)
+    // 聚焦交给根节点的 pointerdown 统一处理，避免和冒泡重复调用（z 连跳两次）
     if (win.max) return
     setLive(true)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -223,9 +223,7 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title }: Wi
           ? `translate3d(${dragOffset.dx}px, ${dragOffset.dy}px, 0)`
           : undefined,
       }}
-      onPointerDown={() => {
-        if (!focused) focusWin(win.id)
-      }}
+      onPointerDown={() => focusWin(win.id)}
       role="region"
       aria-label={app?.name ?? win.id}
     >

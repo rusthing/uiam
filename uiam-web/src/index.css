@@ -489,12 +489,11 @@ code,
 .window.open {
   display: flex;
   /* 挂载与「从 Dock 还原」都会重放这一条：`display` 从 none 变 flex 时
-     CSS 动画会重新起跑，所以入场只需要这一处声明，不用额外的状态位 */
-  animation: winIn 0.26s var(--ease) both;
-}
-/* 拖拽期间入场动画必须让位：keyframes 上的 transform 会覆盖内联的拖拽位移 */
-.window.open.live {
-  animation: none;
+     CSS 动画会重新起跑，所以入场只需要这一处声明，不用额外的状态位。
+     不要加 fill-mode：动画结束后若继续保留 `to` 的 transform:none，
+     会盖掉写在 style 上的拖拽位移，就只能靠切 animation-name 让位，
+     而那种切换会让每次点标题栏都重播一次入场动画（闪一下） */
+  animation: winIn 0.26s var(--ease);
 }
 .window.focus {
   box-shadow:
