@@ -651,6 +651,7 @@ export function Desktop() {
               win={w}
               focused={shell.focusId === w.id}
               title={shell.titles[w.id]}
+              path={shell.paths[w.id]}
             />
           ))}
         </div>

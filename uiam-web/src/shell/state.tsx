@@ -55,6 +55,15 @@ interface ShellApi {
   /** 子应用回报的动态标题；没有回报时窗口沿用 APP_MAP 里的名字 */
   titles: Record<string, string>
   setWinTitle: (id: string, title: string) => void
+  /**
+   * 子应用当前所在的路由（窗口内部路由，不是宿主地址栏）。
+   *
+   * 只服务窗口标题栏的「在新页面打开」：那个按钮要把窗口里的应用还原成它在
+   * 浏览器里的独立地址，如果只开 base 就会把用户从「报警规则详情」丢回首页。
+   * 和 titles 一样按 app.id 记（一个应用只有一扇窗）。
+   */
+  paths: Record<string, string>
+  setWinPath: (id: string, path: string) => void
   /** 每个应用本次打开时希望落在的初始路由；不填用 meta 里的 route */
   routes: Record<string, string>
   openApp: (id: string, route?: string) => void
@@ -87,6 +96,7 @@ interface ShellApi {
  */
 type ShellActionKey =
   | 'setWinTitle'
+  | 'setWinPath'
   | 'openApp'
   | 'closeWin'
   | 'minimizeWin'
@@ -212,6 +222,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [wins, setWins] = useState<WinState[]>([])
   const [focusId, setFocusId] = useState<string | null>(null)
   const [titles, setTitles] = useState<Record<string, string>>({})
+  const [paths, setPaths] = useState<Record<string, string>>({})
   const [routes, setRoutes] = useState<Record<string, string>>({})
   const [pinned, setPinned] = useState<string[]>(loadPinned)
   const [temp, setTemp] = useState<TempDockItem[]>([])
@@ -282,6 +293,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     setTitles((prev) => (prev[id] === title ? prev : { ...prev, [id]: title }))
   }, [])
 
+  /** 路由回报可能和上一条重复（子应用重渲染就会报），同值直接丢弃，免得白刷一遍桌面 */
+  const setWinPath = useCallback((id: string, path: string) => {
+    setPaths((prev) => (prev[id] === path ? prev : { ...prev, [id]: path }))
+  }, [])
+
   const openApp = useCallback((id: string, route?: string) => {
     const app = APP_MAP[id]
     if (!app) return
@@ -327,6 +343,12 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const unmountWin = useCallback((id: string) => {
     setWins((prev) => prev.filter((w) => w.id !== id))
     setTitles((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setPaths((prev) => {
       if (!(id in prev)) return prev
       const next = { ...prev }
       delete next[id]
@@ -516,6 +538,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const actions = useMemo<ShellActions>(
     () => ({
       setWinTitle,
+      setWinPath,
       openApp,
       closeWin,
       minimizeWin,
@@ -531,6 +554,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     }),
     [
       setWinTitle,
+      setWinPath,
       openApp,
       closeWin,
       minimizeWin,
@@ -552,13 +576,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       wins,
       focusId,
       titles,
+      paths,
       routes,
       pinned,
       temp,
       editing,
       launchpad,
     }),
-    [actions, wins, focusId, titles, routes, pinned, temp, editing, launchpad],
+    [actions, wins, focusId, titles, paths, routes, pinned, temp, editing, launchpad],
   )
 
   return (

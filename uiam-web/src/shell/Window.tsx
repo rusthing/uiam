@@ -1,5 +1,5 @@
 /**
- * 窗口框：交通灯 + 可拖拽标题栏 + 八向改大小 + 内容区。
+ * 窗口框：交通灯 + 「在新页面打开」+ 可拖拽标题栏 + 八向改大小 + 内容区。
  *
  * 拖动用 Pointer Events 而不是 mousemove：指针捕获之后即使鼠标划过 iframe 或
  * 窗口外也不会丢事件，这是原型的 `makeDraggable` 想做但做不到的事。起始位置在
@@ -20,7 +20,7 @@
  */
 import { memo, useRef, useState } from 'react'
 import { AppBody } from '../apps'
-import { APP_MAP } from '../apps/meta'
+import { APP_MAP, type AppMeta } from '../apps/meta'
 import { AppIcon } from '../apps/AppIcon'
 import { useShellActions, type WinState } from './state'
 import { cx } from '../components/ui'
@@ -51,6 +51,45 @@ const TL_MAX = (
     <path d="M2.2 5.8V2.2h3.6M5.8 2.2v3.6H2.2" />
   </svg>
 )
+/** 「在新页面打开」：方框 + 右上角出去的箭头，和浏览器里的「新窗口打开」同一套语汇 */
+const TL_OPEN = (
+  <svg
+    viewBox="0 0 12 12"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.3"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4.9 7.1 9.5 2.5" />
+    <path d="M5.8 2.5h3.7v3.7" />
+    <path d="M9.2 6.8V9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V3.8a1 1 0 0 1 1-1h2.2" />
+  </svg>
+)
+
+/**
+ * 把窗口里的应用还原成它在浏览器里的独立地址。
+ *
+ * 窗口内跑的是 MemoryRouter（路径相对应用根，如 `/rules/7`），独立页却挂在
+ * `/<app>-web/` 下，所以必须 base + 子路由拼一次；只开 base 会把用户从详情页
+ * 丢回首页。`path` 还没回报时用 meta 的 route 兜底；两者都没有就开 base。
+ *
+ * 没有 url 的应用（四个内置应用）返回 null——它们没有独立页面可开。
+ */
+function standaloneUrl(app: AppMeta, path?: string): string | null {
+  if (!app.url) return null
+  const sub = (path ?? app.route ?? '').replace(/^\/+/, '')
+  try {
+    const url = new URL(app.url, window.location.origin)
+    const base = url.pathname.replace(/\/+$/, '')
+    // 无子路由时保留 base 的尾斜杠：`/msg-web` 这类目录地址少了斜杠会被静态站
+    // 先 301 一次，遇到网关前缀改写还可能落到 404
+    url.pathname = sub ? `${base}/${sub}` : `${base}/`
+    return url.toString()
+  } catch {
+    return app.url
+  }
+}
 
 interface WindowFrameProps {
   win: WinState
@@ -58,11 +97,15 @@ interface WindowFrameProps {
   focused: boolean
   /** 子应用回报的动态标题；没有时用 meta 里的名字 */
   title?: string
+  /** 子应用当前所在的路由，只用于拼「在新页面打开」的地址 */
+  path?: string
 }
 
-export const WindowFrame = memo(function WindowFrame({ win, focused, title }: WindowFrameProps) {
+export const WindowFrame = memo(function WindowFrame({ win, focused, title, path }: WindowFrameProps) {
   const { focusWin, closeWin, minimizeWin, toggleMax, moveWin, resizeWin } = useShellActions()
   const app = APP_MAP[win.id]
+  /** 能独立打开才给按钮：内置应用没有浏览器里的独立地址 */
+  const openHref = app ? standaloneUrl(app, path) : null
   /**
    * 拖动 / 改大小的过程中要关掉几何过渡（`.live`）。开着过渡的话，每帧新坐标都
    * 被 0.24s 的缓动追着走，窗口会像拖着一根橡皮筋——拖拽必须是 1:1 跟手。
@@ -85,8 +128,8 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title }: Wi
 
   const onBarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
-    // 交通灯上的点击不要被拖拽逻辑吞掉
-    if ((e.target as HTMLElement).closest('.tl')) return
+    // 交通灯和「在新页面打开」上的点击不要被拖拽逻辑吞掉
+    if ((e.target as HTMLElement).closest('.tl, .win-open')) return
     // 聚焦交给根节点的 pointerdown 统一处理，避免和冒泡重复调用（z 连跳两次）
     if (win.max) return
     setLive(true)
@@ -235,31 +278,46 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title }: Wi
         onPointerCancel={onBarPointerUp}
         onDoubleClick={() => toggleMax(win.id)}
       >
-        <div className="traffic">
-          <button
-            className="tl c"
-            title="关闭"
-            aria-label="关闭窗口"
-            onClick={() => closeWin(win.id)}
-          >
-            {TL_CLOSE}
-          </button>
-          <button
-            className="tl m"
-            title="最小化"
-            aria-label="最小化窗口"
-            onClick={() => minimizeWin(win.id)}
-          >
-            {TL_MIN}
-          </button>
-          <button
-            className="tl z"
-            title="缩放"
-            aria-label="最大化窗口"
-            onClick={() => toggleMax(win.id)}
-          >
-            {TL_MAX}
-          </button>
+        <div className="win-lead">
+          <div className="traffic">
+            <button
+              className="tl c"
+              title="关闭"
+              aria-label="关闭窗口"
+              onClick={() => closeWin(win.id)}
+            >
+              {TL_CLOSE}
+            </button>
+            <button
+              className="tl m"
+              title="最小化"
+              aria-label="最小化窗口"
+              onClick={() => minimizeWin(win.id)}
+            >
+              {TL_MIN}
+            </button>
+            <button
+              className="tl z"
+              title="缩放"
+              aria-label="最大化窗口"
+              onClick={() => toggleMax(win.id)}
+            >
+              {TL_MAX}
+            </button>
+          </div>
+          {openHref && (
+            <button
+              className="win-open"
+              type="button"
+              title="在新页面打开"
+              aria-label="在新页面打开"
+              onClick={() => window.open(openHref, '_blank', 'noopener,noreferrer')}
+              // 标题栏双击是「最大化」；在按钮上连点两下不该顺手把窗口拉全屏
+              onDoubleClick={(e) => e.stopPropagation()}
+            >
+              {TL_OPEN}
+            </button>
+          )}
         </div>
         <div className="win-title">
           {app && (

@@ -90,12 +90,17 @@ class FederationBoundary extends Component<
 
 export function FederationApp({ app }: { app: AppMeta }) {
   const theme = useSyncExternalStore<Theme>(subscribeTheme, currentTheme, () => 'light')
-  const { setWinTitle, routes } = useShell()
+  const { setWinTitle, setWinPath, routes } = useShell()
   // openApp(id, route) 的覆盖（账户菜单「个人中心」跳 adm /profile）；没有则用 meta 默认。
   const initialPath = routes[app.id] ?? app.route ?? '/'
   const onRoute = useCallback(
-    (_path: string, title: string) => setWinTitle(app.id, title || app.name),
-    [app.id, app.name, setWinTitle],
+    (path: string, title: string) => {
+      setWinTitle(app.id, title || app.name)
+      // 记下窗口内部路由：标题栏的「在新页面打开」要靠它把用户送到同一页，
+      // 否则点一下就被丢回应用首页
+      if (path) setWinPath(app.id, path)
+    },
+    [app.id, app.name, setWinTitle, setWinPath],
   )
 
   // retry 变化时重新 lazy()，生成 payload 干净的新组件：这样重试才会真正重新

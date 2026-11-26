@@ -623,6 +623,49 @@ code,
   gap: 4px;
 }
 
+/* 标题栏左半区：交通灯 + 「在新页面打开」。做成一个 flex 组，交通灯的位置不变，
+   新按钮跟在它右边——两者都在窗口左上角，但拖拽热区只认标题栏本身 */
+.win-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* 图标按钮，尺寸对齐 44px 标题栏里的其它小控件；用颜色而不是底色表达可点，
+   悬停才浮出一块极浅的底，避免一排实心块把标题栏压得很重 */
+.win-open {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--t3);
+  cursor: default;
+  transition:
+    background 0.14s,
+    color 0.14s;
+}
+.win-open svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.win-open:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--t1);
+}
+[data-theme='dark'] .win-open:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+/* 没聚焦的窗口不该抢注意力，和交通灯一起淡下去（但保留可点性） */
+.window:not(.focus) .win-open {
+  color: rgba(140, 140, 148, 0.75);
+}
+
 .traffic {
   display: flex;
   gap: 8px;
