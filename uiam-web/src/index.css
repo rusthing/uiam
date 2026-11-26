@@ -465,13 +465,15 @@ code,
   min-width: 460px;
   min-height: 280px;
   /* 缩放 / 还原走这四个长度属性的过渡：目标值是 `.window.max` 那套 `!important`，
-     过渡照样认（它只关心值变了没）。拖拽时由 `.live` 关掉，见上面的注释。 */
+     过渡照样认（它只关心值变了没）。拖拽时由 `.live` 关掉几何部分。
+     聚焦时阴影数值跳变，也给它一条过渡，否则看起来像闪一下 */
   transition:
     left 0.24s var(--ease),
     top 0.24s var(--ease),
     width 0.24s var(--ease),
     height 0.24s var(--ease),
-    border-radius 0.24s var(--ease);
+    border-radius 0.24s var(--ease),
+    box-shadow 0.2s var(--ease);
   /* 四层：贴边 hairline、远景体积、近景接触影、顶部内高光。
      窗口是画面里最重的一层，投影必须比组件多一档，否则会「飘」在壁纸上 */
   box-shadow:
@@ -481,10 +483,12 @@ code,
     inset 0 0.5px 0 rgba(255, 255, 255, 0.9);
 }
 /* 指针驱动的拖拽 / 改大小：几何必须 1:1 跟手，任何过渡都会变成延迟。
-   拖动期间坐标走 transform（合成器），因此额外提升成独立图层 */
+   不要在这里加 will-change：单击标题栏也会短暂进入 .live，强制提层/降级
+   会让窗口内容（尤其 iframe / canvas）重光栅化一帧，看起来像闪一下。
+   transform 本身就会走合成器，不需要提前声明 */
 .window.live {
-  transition: none;
-  will-change: transform;
+  /* 几何仍要 1:1 跟手，但阴影过渡可以留着——它跟拖拽位移无关 */
+  transition: box-shadow 0.2s var(--ease);
 }
 .window.open {
   display: flex;
@@ -595,6 +599,9 @@ code,
   align-items: center;
   justify-content: center;
   gap: 7px;
+  transition:
+    color 0.2s,
+    font-weight 0.2s;
 }
 .window:not(.focus) .win-title {
   color: var(--t3);
@@ -683,6 +690,7 @@ code,
   box-shadow:
     inset 0 0 0 0.5px rgba(0, 0, 0, 0.14),
     inset 0 0.5px 1px rgba(255, 255, 255, 0.35);
+  transition: background 0.2s var(--ease);
 }
 .tl.c {
   background: #ff5f57;

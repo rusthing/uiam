@@ -132,7 +132,8 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
     if ((e.target as HTMLElement).closest('.tl, .win-open')) return
     // 聚焦交给根节点的 pointerdown 统一处理，避免和冒泡重复调用（z 连跳两次）
     if (win.max) return
-    setLive(true)
+    // 不在这里 setLive：单击标题栏也会触发 pointerdown，进出 .live 会切
+    // transition / 合成层，看起来像闪一下。真正开始移动时再切。
     e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = {
       sx: e.clientX,
@@ -159,6 +160,7 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
     d.lastX = nx
     d.lastY = ny
     if (nx === d.x && ny === d.y) return
+    if (!d.moved) setLive(true)
     d.moved = true
     if (frame.current) return
     frame.current = requestAnimationFrame(() => {
