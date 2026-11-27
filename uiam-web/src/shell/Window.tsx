@@ -1,10 +1,6 @@
 /**
  * 窗口框：交通灯 + 「在新页面打开」+ 可拖拽标题栏 + 八向改大小 + 内容区。
  *
- * 绿点是 macOS 的语义：**点一下进全屏**（桌面整个让给这扇窗，菜单栏与 Dock 收起），
- * 按住 ⌥ 点才是「缩放」（放大到桌面可视区）；双击标题栏同样是缩放。全屏下绿点变成
- * 「退出全屏」，Esc、再点一次绿点都能回来。
- *
  * 拖动用 Pointer Events 而不是 mousemove：指针捕获之后即使鼠标划过 iframe 或
  * 窗口外也不会丢事件，这是原型的 `makeDraggable` 想做但做不到的事。起始位置在
  * `pointerdown` 时冻结在 ref 里，所以拖动过程中 `win.x` 一直在变也不会自乘。
@@ -50,18 +46,9 @@ const TL_MIN = (
     <path d="M2 4h4" />
   </svg>
 )
-/** 全屏：两支箭头朝外，从中心撑向四角 */
-const TL_FULL = (
+const TL_MAX = (
   <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-    <path d="M3.3 4.7 1.6 6.4M1.6 6.4h1.7M1.6 6.4v-1.7" />
-    <path d="M4.7 3.3 6.4 1.6M6.4 1.6h-1.7M6.4 1.6v1.7" />
-  </svg>
-)
-/** 退出全屏：同一支箭头掉头，从四角往回收 */
-const TL_UNFULL = (
-  <svg viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-    <path d="M1.6 1.6 3.4 3.4M3.4 3.4h-1.6M3.4 3.4v-1.6" />
-    <path d="M6.4 6.4 4.6 4.6M4.6 4.6h1.6M4.6 4.6v1.6" />
+    <path d="M2.2 5.8V2.2h3.6M5.8 2.2v3.6H2.2" />
   </svg>
 )
 /** 「在新页面打开」：方框 + 右上角出去的箭头，和浏览器里的「新窗口打开」同一套语汇 */
@@ -115,8 +102,7 @@ interface WindowFrameProps {
 }
 
 export const WindowFrame = memo(function WindowFrame({ win, focused, title, path }: WindowFrameProps) {
-  const { focusWin, closeWin, minimizeWin, toggleMax, toggleFull, moveWin, resizeWin } =
-    useShellActions()
+  const { focusWin, closeWin, minimizeWin, toggleMax, moveWin, resizeWin } = useShellActions()
   const app = APP_MAP[win.id]
   /** 能独立打开才给按钮：内置应用没有浏览器里的独立地址 */
   const openHref = app ? standaloneUrl(app, path) : null
@@ -145,8 +131,7 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
     // 交通灯和「在新页面打开」上的点击不要被拖拽逻辑吞掉
     if ((e.target as HTMLElement).closest('.tl, .win-open')) return
     // 聚焦交给根节点的 pointerdown 统一处理，避免和冒泡重复调用（z 连跳两次）
-    // 铺满屏幕的窗口没有可拖的余地
-    if (win.max || win.full) return
+    if (win.max) return
     // 不在这里 setLive：单击标题栏也会触发 pointerdown，进出 .live 会切
     // transition / 合成层，看起来像闪一下。真正开始移动时再切。
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -223,7 +208,7 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
     // 别让把手上的按下冒泡到窗口 / 标题栏，否则会顺手触发一次拖动或聚焦抬升
     e.stopPropagation()
     e.preventDefault()
-    if (win.max || win.full) return
+    if (win.max) return
     focusWin(win.id)
     setLive(true)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -269,7 +254,6 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
         'window open',
         focused && 'focus',
         win.max && 'max',
-        win.full && 'full',
         live && 'live',
         win.anim && `anim-${win.anim}`,
       )}
@@ -294,10 +278,10 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
         onPointerMove={onBarPointerMove}
         onPointerUp={onBarPointerUp}
         onPointerCancel={onBarPointerUp}
-        onDoubleClick={() => (win.full ? toggleFull(win.id) : toggleMax(win.id))}
+        onDoubleClick={() => toggleMax(win.id)}
       >
         <div className="win-lead">
-          <div className="traffic" onDoubleClick={(e) => e.stopPropagation()}>
+          <div className="traffic">
             <button
               className="tl c"
               title="关闭"
@@ -316,16 +300,11 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
             </button>
             <button
               className="tl z"
-              title={win.full ? '退出全屏' : '全屏（⌥ 点击缩放）'}
-              aria-label={win.full ? '退出全屏' : '进入全屏，按住 Option 点击则缩放窗口'}
-              onClick={(e) => {
-                // 和 macOS 一致：绿点是全屏，⌥ 点才是缩放；双击标题栏也还是缩放
-                if (win.full) toggleFull(win.id)
-                else if (e.altKey) toggleMax(win.id)
-                else toggleFull(win.id)
-              }}
+              title="缩放"
+              aria-label="最大化窗口"
+              onClick={() => toggleMax(win.id)}
             >
-              {win.full ? TL_UNFULL : TL_FULL}
+              {TL_MAX}
             </button>
           </div>
           {openHref && (
@@ -356,9 +335,8 @@ export const WindowFrame = memo(function WindowFrame({ win, focused, title, path
         <AppBody id={win.id} />
       </div>
 
-      {/* 八个把手贴着窗口边缘，最外 6px 是热区；最大化 / 全屏时不给，和 macOS 一致 */}
+      {/* 八个把手贴着窗口边缘，最外 6px 是热区；最大化时不给，和 macOS 一致 */}
       {!win.max &&
-        !win.full &&
         DIRS.map((dir) => (
           <div
             key={dir}

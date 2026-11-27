@@ -330,17 +330,7 @@ code,
   box-shadow:
     inset 0 0.5px 0 rgba(255, 255, 255, 0.16),
     inset 0 -0.5px 0 rgba(255, 255, 255, 0.1);
-  transition:
-    background 0.28s,
-    transform 0.3s var(--ease),
-    opacity 0.22s var(--ease-soft);
-}
-/* 有窗口进了全屏：菜单栏让位（macOS 全屏幕里也是收起来的）。
-   用位移 + 淡出而不是 display:none，退出时才有「滑回来」的那一下 */
-html[data-win-full='true'] .menubar {
-  transform: translateY(-100%);
-  opacity: 0;
-  pointer-events: none;
+  transition: background 0.28s;
 }
 [data-theme='dark'] .menubar {
   background: linear-gradient(180deg, rgba(0, 0, 0, var(--glass-veil)), rgba(0, 0, 0, 0.12));
@@ -536,20 +526,6 @@ html[data-win-full='true'] .menubar {
   width: calc(100% - 52px) !important;
   height: calc(100% - 128px) !important;
   border-radius: 12px;
-}
-/* 全屏：桌面整个让给这一扇窗。铺满的是**整块屏幕**（菜单栏与 Dock 由
-   html[data-win-full='true'] 收起来），所以这里没有圆角、没有投影——它现在就是屏幕本身。
-   写在 .max 之后：两者都是 .window 的修饰类，后到的说了算 */
-.window.full {
-  left: 0 !important;
-  top: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  border-radius: 0;
-  box-shadow: none;
-}
-[data-theme='dark'] .window.full {
-  box-shadow: none;
 }
 /* 入场只做一次、只动 compositor 的两个属性：
    0.24s 的弹性缩放 + 轻微上浮，比纯淡入更像「一扇窗被放下」 */
@@ -1585,10 +1561,7 @@ body.editing .wg-add {
   );
   border-radius: 24px;
   z-index: 9500;
-  transition:
-    background 0.28s,
-    transform 0.3s var(--ease),
-    opacity 0.22s var(--ease-soft);
+  transition: background 0.28s;
   box-shadow:
     0 0 0 0.5px rgba(255, 255, 255, 0.32),
     0 30px 60px -18px rgba(4, 8, 20, 0.5),
@@ -1609,12 +1582,6 @@ body.editing .wg-add {
     0 30px 60px -18px rgba(0, 0, 0, 0.72),
     0 4px 12px rgba(0, 0, 0, 0.34),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.22);
-}
-/* 全屏时 Dock 沉到屏幕外：注意要带上居中用的 -50%，否则它会横跳半个屏幕 */
-html[data-win-full='true'] .dock {
-  transform: translate(-50%, calc(100% + 24px));
-  opacity: 0;
-  pointer-events: none;
 }
 .dock-group {
   display: flex;

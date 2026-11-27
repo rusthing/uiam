@@ -294,9 +294,6 @@ export function Desktop() {
   const resizeRef = useRef<ResizeState | null>(null)
   const suppressClick = useRef(false)
   const widgetsRef = useRef<HTMLDivElement>(null)
-  /** `wins` 的镜像：Esc 的监听器不该在每次拖窗口时重订阅一遍 */
-  const winsRef = useRef(shell.wins)
-  winsRef.current = shell.wins
 
   const layoutKey = useMemo(
     () => layout.map((it) => `${it.id}.${it.size}.${it.x}.${it.y}`).join('|'),
@@ -359,12 +356,6 @@ export function Desktop() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      // 全屏优先：Esc 先把窗口从那块屏幕上收回来，其次才是关画廊 / 退出编辑
-      const fullWin = winsRef.current.find((w) => w.full && !w.min)
-      if (fullWin) {
-        shell.toggleFull(fullWin.id)
-        return
-      }
       if (galleryOpen) {
         setGalleryOpen(false)
         return
@@ -374,7 +365,7 @@ export function Desktop() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editing, setEditing, setLaunchpad, galleryOpen, shell.toggleFull])
+  }, [editing, setEditing, setLaunchpad, galleryOpen])
 
   useEffect(() => {
     const onReset = () => reset()
