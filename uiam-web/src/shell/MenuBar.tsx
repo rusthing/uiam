@@ -8,8 +8,15 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { currentTheme, subscribeTheme, toggleTheme } from '../lib/theme'
+import {
+  currentDesktopFullscreen,
+  subscribeDesktopFullscreen,
+  toggleDesktopFullscreen,
+} from '../lib/fullscreen'
+import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth-context'
 import { siteIconPath, useSiteConfig } from '../lib/site'
+import { cx } from '../components/ui'
 import { useShell } from './state'
 
 const SUN = (
@@ -39,6 +46,40 @@ const MOON = (
     strokeLinejoin="round"
   >
     <path d="M20.5 14.3A8.5 8.5 0 0 1 9.7 3.5a8.5 8.5 0 1 0 10.8 10.8Z" />
+  </svg>
+)
+
+const EXPAND = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M10 10 4 4M4 4h6M4 4v6" />
+    <path d="M14 14l6 6M20 20h-6M20 20v-6" />
+  </svg>
+)
+
+const COLLAPSE = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 4 11 11M11 11H5M11 11V5" />
+    <path d="M20 20 13 13M13 13h6M13 13v6" />
   </svg>
 )
 
@@ -177,6 +218,12 @@ function IconPower() {
 export function MenuBar() {
   const shell = useShell()
   const theme = useSyncExternalStore(subscribeTheme, currentTheme, currentTheme)
+  const full = useSyncExternalStore(
+    subscribeDesktopFullscreen,
+    currentDesktopFullscreen,
+    currentDesktopFullscreen,
+  )
+  const toast = useToast()
   const site = useSiteConfig()
   const themeRef = useRef<HTMLButtonElement>(null)
   const now = useClock()
@@ -218,6 +265,20 @@ export function MenuBar() {
           aria-label="切换外观"
         >
           {theme === 'dark' ? SUN : MOON}
+        </button>
+        <button
+          className={cx('mb-status', full && 'on')}
+          onClick={() => {
+            // 整页全屏，不是窗口最大化；这台浏览器不给就直说，别让按钮点了没反应
+            if (!toggleDesktopFullscreen()) {
+              toast.error('这台浏览器不允许网页全屏，可用系统全屏快捷键（⌃⌘F 或 F11）')
+            }
+          }}
+          title={full ? '退出全屏（Esc）' : '全屏显示桌面'}
+          aria-label={full ? '退出全屏' : '全屏显示桌面'}
+          aria-pressed={full}
+        >
+          {full ? COLLAPSE : EXPAND}
         </button>
         <AccountMenu />
         <div className="mb-clock">{now}</div>

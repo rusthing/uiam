@@ -402,6 +402,10 @@ code,
 .mb-status:hover {
   background: rgba(255, 255, 255, 0.17);
 }
+/* 已经处于该状态（比如桌面已经全屏）：留一块淡底，和「点一下切过去」的按钮区分开 */
+.mb-status.on {
+  background: rgba(255, 255, 255, 0.19);
+}
 .mb-clock {
   padding: 2px 8px;
   font-variant-numeric: tabular-nums;
