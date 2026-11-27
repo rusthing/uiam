@@ -26,6 +26,14 @@ export interface WinState {
   h: number
   min: boolean
   max: boolean
+  /**
+   * 全屏：窗口铺满**整块屏幕**，菜单栏与 Dock 收起来（macOS 的绿点行为）。
+   *
+   * 和 `max` 是两件不同的事：`max` 只是把窗口放大到桌面可视区里（四周还留着
+   * 菜单栏和 Dock 让出来的边），全屏则是把桌面本身让给这一扇窗——所以它还要
+   * 顺手把整个文档提成浏览器全屏（见下面那对 `enterBrowserFullscreen`）。
+   */
+  full: boolean
   z: number
   /**
    * 退场相位：`closing` / `minimizing`。
@@ -72,6 +80,8 @@ interface ShellApi {
   /** 回到桌面：把所有开着的窗口收起来，再点一次还原（Dock 上的「回到桌面」） */
   toggleDesktop: () => void
   toggleMax: (id: string) => void
+  /** 进入 / 退出全屏：同一扇窗同一时刻只可能有一扇是全屏的，切换时顺手收掉别人的 */
+  toggleFull: (id: string) => void
   focusWin: (id: string) => void
   moveWin: (id: string, x: number, y: number) => void
   resizeWin: (id: string, geo: { x: number; y: number; w: number; h: number }) => void
@@ -102,6 +112,7 @@ type ShellActionKey =
   | 'minimizeWin'
   | 'toggleDesktop'
   | 'toggleMax'
+  | 'toggleFull'
   | 'focusWin'
   | 'moveWin'
   | 'resizeWin'
@@ -185,6 +196,55 @@ function clampGeo(g: Geo): Geo {
     h,
     x: Math.min(Math.max(g.x, 120 - w), Math.max(120 - w, vw - w - 10)),
     y: Math.min(Math.max(g.y, MIN_Y), Math.max(MIN_Y, vh - h - 10)),
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 浏览器全屏（Fullscreen API）的薄封装
+ *
+ * 窗口全屏要盖满**整块屏幕**，可网页里的 `100%` 只是「窗口可视区」——浏览器
+ * 自己的标题栏、地址栏还占着上方一条。所以进全屏时顺手把整个文档提成全屏，
+ * 退出时再还原；浏览器不支持（被权限策略拦、不是用户手势、系统不让）就当没有，
+ * 窗口靠 `.window.full` 铺满可视区，其余照旧。
+ *
+ * 只认「整个文档」的全屏：子应用 iframe 自己进全屏时不算我们的，退出时也不能
+ * 顺手把别人的全屏关掉。
+ * ------------------------------------------------------------------ */
+type FsDoc = Document & { webkitExitFullscreen?: () => Promise<void> | void }
+type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }
+
+function fullscreenElement(): Element | null {
+  const doc = document as FsDoc & { webkitFullscreenElement?: Element | null }
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null
+}
+
+function docIsFullscreen(): boolean {
+  return fullscreenElement() === document.documentElement
+}
+
+function enterBrowserFullscreen() {
+  if (docIsFullscreen()) return
+  const el = document.documentElement as FsEl
+  const request = el.requestFullscreen ?? el.webkitRequestFullscreen
+  if (!request) return
+  try {
+    const ret = request.call(el) as Promise<void> | void
+    if (ret && typeof ret.then === 'function') ret.catch(() => {})
+  } catch {
+    // 拒绝了就算了：`.window.full` 已经把可视区铺满，功能不残
+  }
+}
+
+function exitBrowserFullscreen() {
+  if (!docIsFullscreen()) return
+  const doc = document as FsDoc
+  const exit = doc.exitFullscreen ?? doc.webkitExitFullscreen
+  if (!exit) return
+  try {
+    const ret = exit.call(doc) as Promise<void> | void
+    if (ret && typeof ret.then === 'function') ret.catch(() => {})
+  } catch {
+    // 已经不在全屏里了：忽略
   }
 }
 
@@ -273,9 +333,26 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     () => () => {
       window.clearTimeout(geoTimer.current)
       Object.values(animTimers.current).forEach((t) => window.clearTimeout(t))
+      // 卸载（退出登录 / 切到锁屏）时别把浏览器留在全屏里
+      exitBrowserFullscreen()
     },
     [],
   )
+
+  /**
+   * 有没有一扇「铺满屏幕」的窗口。挂成根节点上的标记而不是某个组件的 local state：
+   * 菜单栏和 Dock 是两个独立组件，它们只看这个属性决定自己收不收起来。
+   * 最小化的窗口不算——那时桌面已经露出来了，托盘得能点。
+   */
+  const hasFull = wins.some((w) => w.full && !w.min)
+  useEffect(() => {
+    const html = document.documentElement
+    if (hasFull) html.dataset.winFull = 'true'
+    else delete html.dataset.winFull
+    return () => {
+      delete html.dataset.winFull
+    }
+  }, [hasFull])
 
   const focusWin = useCallback(
     (id: string) => {
@@ -333,7 +410,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
         return prev.map((w) => (w.id === id ? { ...w, min: false, z, anim: undefined } : w))
       }
       const geo = placeWindow(id, cascadeRef.current++, geoRef.current[id])
-      return [...prev, { id, ...geo, min: false, max: false, z }]
+      return [...prev, { id, ...geo, min: false, max: false, full: false, z }]
     })
     setFocusId(id)
     setLaunchpad(false)
@@ -374,6 +451,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       // 已经在退场：别把这条动画从头再排一遍
       if (cur.anim === 'closing') return
       cancelAnim(id)
+      if (cur.full) exitBrowserFullscreen()
       setWins((prev) => prev.map((w) => (w.id === id ? { ...w, anim: 'closing' } : w)))
       setFocusId((cur) => (cur === id ? null : cur))
       animTimers.current[id] = window.setTimeout(() => {
@@ -396,7 +474,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       if (cur.anim === 'closing') return
       if (cur.anim === 'minimizing') return
       cancelAnim(id)
-      setWins((prev) => prev.map((w) => (w.id === id ? { ...w, anim: 'minimizing' } : w)))
+      // 全屏的窗口收进 Dock：菜单栏和 Dock 得立刻滑回来，否则桌面上只剩一张壁纸
+      if (cur.full) exitBrowserFullscreen()
+      setWins((prev) => prev.map((w) => (w.id === id ? { ...w, anim: 'minimizing', full: false } : w)))
       setFocusId((cur) => (cur === id ? null : cur))
       animTimers.current[id] = window.setTimeout(() => {
         delete animTimers.current[id]
@@ -419,7 +499,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       deskHidden.current = visible.map((w) => w.id)
       // 一键收起不做逐窗动画：几扇窗一起往 Dock 里掉会很吵，直接落成 `min`
       visible.forEach((w) => cancelAnim(w.id))
-      setWins((prev) => prev.map((w) => (w.min ? w : { ...w, min: true, anim: undefined })))
+      // 全屏窗也要一起收：不然浏览器还停在全屏里，桌面就只剩壁纸、Dock 也叫不回来
+      if (visible.some((w) => w.full)) exitBrowserFullscreen()
+      setWins((prev) =>
+        prev.map((w) => (w.min ? w : { ...w, min: true, anim: undefined, full: false })),
+      )
       setFocusId(null)
       setLaunchpad(false)
       return
@@ -443,9 +527,70 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     zRef.current += 1
     const z = zRef.current
     setWins((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, max: !w.max, z, min: false } : w)),
+      prev.map((w) => (w.id === id ? { ...w, max: !w.max, z, min: false, full: false } : w)),
     )
     setFocusId(id)
+  }, [])
+
+  /**
+   * 全屏：把桌面让给这一扇窗。
+   *
+   * 进的时候顺手清掉 `max`（否则退出全屏会落进「最大化」而不是原来的大小），
+   * 并且只留这一扇全屏——其余窗口的全屏态在这里一起收掉，避免出现两扇「都铺满」
+   * 的窗口互相盖。DOM 层的浏览器全屏和状态层必须同进同退，所以两处都在这里改。
+   */
+  const applyFull = useCallback(
+    (id: string, on: boolean) => {
+      cancelAnim(id)
+      if (on) {
+        enterBrowserFullscreen()
+      } else {
+        exitBrowserFullscreen()
+      }
+      zRef.current += 1
+      const z = zRef.current
+      setWins((prev) =>
+        prev.map((w) =>
+          w.id === id
+            ? { ...w, full: on, max: false, min: false, z, anim: undefined }
+            : on && w.full
+              ? { ...w, full: false }
+              : w,
+        ),
+      )
+      setFocusId(id)
+      if (on) setLaunchpad(false)
+    },
+    [cancelAnim],
+  )
+
+  const toggleFull = useCallback(
+    (id: string) => {
+      const cur = winsRef.current.find((w) => w.id === id)
+      // 正在演关窗：让它走完，别在半路把窗口又拉成铺满
+      if (!cur || cur.anim === 'closing') return
+      applyFull(id, !cur.full)
+    },
+    [applyFull],
+  )
+
+  /**
+   * 浏览器全屏被别人退出（用户按 Esc、系统切走全屏）：窗口跟着退出全屏态。
+   *
+   * 不跟就会留下「浏览器不是全屏、窗口却铺满、菜单栏和 Dock 都不在」的死状态——
+   * 用户没有任何入口把界面恢复回来。
+   */
+  useEffect(() => {
+    const onChange = () => {
+      if (docIsFullscreen()) return
+      setWins((prev) => (prev.some((w) => w.full) ? prev.map((w) => (w.full ? { ...w, full: false } : w)) : prev))
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    document.addEventListener('webkitfullscreenchange', onChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange)
+      document.removeEventListener('webkitfullscreenchange', onChange)
+    }
   }, [])
 
   const moveWin = useCallback(
@@ -544,6 +689,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       minimizeWin,
       toggleDesktop,
       toggleMax,
+      toggleFull,
       focusWin,
       moveWin,
       resizeWin,
@@ -560,6 +706,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       minimizeWin,
       toggleDesktop,
       toggleMax,
+      toggleFull,
       focusWin,
       moveWin,
       resizeWin,
